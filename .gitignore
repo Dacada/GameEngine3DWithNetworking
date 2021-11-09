@@ -1,0 +1,18 @@
+# Directory with resulting binaries
+bin
+
+# Exclude object files and generated dependency files (only useful for
+# continuous development)
+obj
+
+# For Emacs (or Vim) C IDE and for clang-tidy. Auto generated.
+.clang_complete
+
+# TAGS files
+TAGS
+sysh_TAGS
+
+# Generated files
+assets/textures/*.png
+assets/scenes/*.bgl
+assets/fonts/*
