@@ -25,6 +25,7 @@ static void processMouseInput(void *registerArgs, void *fireArgs) {
 
         struct scene *scene = game_getCurrentScene(game);
         struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
+        struct camera_fps *cameracomp = object_getComponent(camera, COMPONENT_CAMERA);
         
         const vec2s curr = {
                 .x = (float)xpos,
@@ -39,7 +40,10 @@ static void processMouseInput(void *registerArgs, void *fireArgs) {
         }
 
         const vec2s offset = glms_vec2_sub(prev, curr);
-        fpsCameraController_look(&cam_ctrl, offset, game_timeDelta(game), camera);
+        
+        vec2s yaw_pitch = fpsCameraController_look(&cam_ctrl, offset, game_timeDelta(game), camera);
+        cameracomp->yaw = yaw_pitch.x;
+        cameracomp->pitch = yaw_pitch.y;
 
         prev = curr;
 }
@@ -67,12 +71,13 @@ static void processKeyboardInput(void *registerArgs, void *fireArgs) {
             game_keyPressed(game, GLFW_KEY_S)) {
                 movement.y -= 1;
         }
+        
+        movement = glms_vec2_normalize(movement);
 
         struct scene *scene = game_getCurrentScene(game);
         struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
-
-        movement = glms_vec2_normalize(movement);
-        fpsCameraController_move(&cam_ctrl, movement, game_timeDelta(game), camera);
+        struct camera_fps *cameracomp = object_getComponent(camera, COMPONENT_CAMERA);
+        cameracomp->position = fpsCameraController_move(&cam_ctrl, movement, game_timeDelta(game), camera);
 }
 
 static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
