@@ -28,11 +28,11 @@ CC := gcc
 CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
 LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` -lm -ldl -std=c11
 
-CFLAGS_DEBUG := -MMD -Og -g
+CFLAGS_DEBUG := -MMD -Og -g -fno-omit-frame-pointer
 LDFLAGS_DEBUG := $(CFLAGS_DEBUG)
 CFLAGS_RELEASE := -MMD -DNDEBUG -flto -O2 -g
 LDFLAGS_RELEASE := $(CFLAGS_RELEASE)
-LDFLAGS_DEVELOP := -fsanitize=address -fsanitize=undefined -Og
+LDFLAGS_DEVELOP := -fsanitize=address -fsanitize=undefined -Og -fno-omit-frame-pointer
 CFLAGS_DEVELOP := -MMD $(LDFLAGS_DEVELOP) -Werror
 
 define FIND_HEADERS_CMD
