@@ -1,6 +1,6 @@
 #version 330 core
 
-#define NUM_BONES 256
+#define NUM_BONES 64
 
 layout (location = 0) in vec3 in_position;
 layout (location = 1) in vec2 in_texCoord;
@@ -25,7 +25,7 @@ vec4 weighted_sum(vec3 v3, float l) {
         float weight1 = in_bonewght.x;
         float weight2 = in_bonewght.y;
         float weight3 = in_bonewght.z;
-        
+
         float sum = weight1 + weight2 + weight3;
         if (sum < 0.001) {
                 return v;
