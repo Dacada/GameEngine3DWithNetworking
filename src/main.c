@@ -1,4 +1,9 @@
-#include <thirty/inputHelpers.h>
+// TODO: UI scaling: GLFW allows to retrieve a DPI scale thing that should be used to scale the UI so it looks good always
+// TODO: raw mouse position, enable when controlling the camera, disable when controlling the cursor
+// TODO: glfwWaitEvents vs glfwPollEvents
+// TODO: glfwSwapInterval
+
+#include <playerController.h>
 #include <thirty/game.h>
 #include <thirty/util.h>
 
@@ -6,79 +11,6 @@
 #define SCREEN_HEIGHT 600
 #define TITLE_BUFFER_SIZE 256
 #define FRAME_PERIOD_FPS_REFRESH 10
-#define CAMERA_PITCH_LIMIT_OFFSET 0.1F
-#define CAMERA_NEAR 0.1F
-#define CAMERA_FAR 100.0F
-#define CAMERA_FOV 45.0F
-
-static const float movement_speed = 10.0F;
-static const float look_sensitivity = 0.1F;
-
-static size_t camera_idx = 0;
-static struct fpsCameraController cam_ctrl;
-
-static void processMouseInput(void *registerArgs, void *fireArgs) {
-        struct game *game = registerArgs;
-        struct eventBrokerMousePosition *args = fireArgs;
-        const double xpos = args->xpos;
-        const double ypos = args->ypos;
-
-        struct scene *scene = game_getCurrentScene(game);
-        struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
-        struct camera_fps *cameracomp = object_getComponent(camera, COMPONENT_CAMERA);
-        
-        const vec2s curr = {
-                .x = (float)xpos,
-                .y = (float)ypos,
-        };
-
-        static bool first = true;
-        static vec2s prev;
-        if (first) {
-                prev = curr;
-                first = false;
-        }
-
-        const vec2s offset = glms_vec2_sub(prev, curr);
-        
-        vec2s yaw_pitch = fpsCameraController_look(&cam_ctrl, offset, game_timeDelta(game), camera);
-        cameracomp->yaw = yaw_pitch.x;
-        cameracomp->pitch = yaw_pitch.y;
-
-        prev = curr;
-}
-
-static void processKeyboardInput(void *registerArgs, void *fireArgs) {
-        struct game *game = registerArgs;
-        (void)fireArgs;
-        
-        vec2s movement = {.x=0, .y=0};
-        
-        if (game_keyPressed(game, GLFW_KEY_LEFT) ||
-            game_keyPressed(game, GLFW_KEY_A)) {
-                movement.x -= 1;
-        }
-        if (game_keyPressed(game, GLFW_KEY_RIGHT) ||
-            game_keyPressed(game, GLFW_KEY_D)) {
-                movement.x += 1;
-        }
-        
-        if (game_keyPressed(game, GLFW_KEY_UP) ||
-            game_keyPressed(game, GLFW_KEY_W)) {
-                movement.y += 1;
-        }
-        if (game_keyPressed(game, GLFW_KEY_DOWN) ||
-            game_keyPressed(game, GLFW_KEY_S)) {
-                movement.y -= 1;
-        }
-        
-        movement = glms_vec2_normalize(movement);
-
-        struct scene *scene = game_getCurrentScene(game);
-        struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
-        struct camera_fps *cameracomp = object_getComponent(camera, COMPONENT_CAMERA);
-        cameracomp->position = fpsCameraController_move(&cam_ctrl, movement, game_timeDelta(game), camera);
-}
 
 static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         static bool playingQ = false;
@@ -94,8 +26,6 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         if (action == GLFW_PRESS) {
                 if (key == GLFW_KEY_ESCAPE) {
                         game_shouldStop(game);
-                } else if (key == GLFW_KEY_F) {
-                        cam_ctrl.freefly = !cam_ctrl.freefly;
                 } else if (key == GLFW_KEY_E || key == GLFW_KEY_Q) {
                         struct scene *scene = game_getCurrentScene(game);
                         size_t idx = scene_idxByName(scene, "SnekSkin");
@@ -130,10 +60,7 @@ static void updateTitle(void *registerArgs, void *fireArgs) {
         if (count == FRAME_PERIOD_FPS_REFRESH) {
                 const int fps = (const int)(1.0F/game_timeDelta(game));
                 static char title[TITLE_BUFFER_SIZE];
-                snprintf(title, TITLE_BUFFER_SIZE, "[%d] Physics (%s)", fps,
-                         cam_ctrl.freefly ?
-                         "Freefly camera" :
-                         "FPS camera");
+                snprintf(title, TITLE_BUFFER_SIZE, "[%d] Untitled trash MMO", fps);
                 game_updateWindowTitle(game, title);
                 count = 0;
         } else {
@@ -162,10 +89,6 @@ int main(void) {
         scene_initFromFile(scene, game, f);
         game_setCurrentScene(game, scene->idx);
 
-        // Setup camera
-        camera_idx = scene_idxByName(scene, "Camera");
-        fpsCameraController_init(&cam_ctrl, scene, movement_speed, look_sensitivity);
-
         // Create UI
         struct ui *ui = game_createUi(game);
         ui_init(ui, SCREEN_WIDTH, SCREEN_HEIGHT);
@@ -175,15 +98,21 @@ int main(void) {
         ui_addText(ui, 35,45, 0.1F, (const unsigned char*)"Something.", font, black);
         game_setCurrentUi(game, ui->idx);
 
+        // Create cursor (player controller will set dimensions correctly)
+        size_t cursor_idx = ui_addQuad(ui, 0, 0, 1, 1, 0.0F, "cursor");
+
+        // Setup player controller
+        struct playerController controller;
+        size_t camera_idx = scene_idxByName(scene, "Camera");
+        struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
+        playerController_setup(&controller, camera, (vec2s){.x=12, .y=17}, cursor_idx);
+
+        // Add a skybox
         scene_setSkybox(scene, "skybox");
 
         // Register events
-        eventBroker_register(processKeyboardInput, EVENT_BROKER_PRIORITY_HIGH,
-                             EVENT_BROKER_KEYBOARD_INPUT, game);
         eventBroker_register(processKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_KEYBOARD_EVENT, game);
-        eventBroker_register(processMouseInput, EVENT_BROKER_PRIORITY_HIGH,
-                             EVENT_BROKER_MOUSE_POSITION, game);
         eventBroker_register(updateTitle, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_UPDATE, game);
         eventBroker_register(freeGame, EVENT_BROKER_PRIORITY_HIGH,
