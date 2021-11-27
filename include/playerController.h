@@ -18,8 +18,12 @@ struct playerController {
         size_t playerCharacter_idx;
         size_t cursor_idx;
 
-        vec2s cursorDimensions;
-        vec2s cursorPosition;
+        vec2s cursor_dimensions;
+        vec2s cursor_position;
+
+        vec2s pc_movement_direction;
+        float pc_rotation;
+        bool camera_needs_update;
 
         struct sphericalCoord camera_position;
         float camera_distance_goal;

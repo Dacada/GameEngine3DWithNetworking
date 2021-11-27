@@ -13,12 +13,13 @@ static const float camera_pos_yaw_behind = GLM_PIf;
 static const float camera_pos_yaw_animation_stop = 1e-3f;
 static const float camera_pos_yaw_animation_rate = 8.0F;
 static const float camera_pos_pitch_initial = 1.25f;
+static const float movement_vector_zero = 1e-9f;
 
 static inline void update_cursor_position(struct playerController *controller) {
         ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
-                           controller->cursorPosition.x, controller->cursorPosition.y,
-                           controller->cursorPosition.x+controller->cursorDimensions.x,
-                           controller->cursorPosition.y+controller->cursorDimensions.y, 1.0F);
+                           controller->cursor_position.x, controller->cursor_position.y,
+                           controller->cursor_position.x+controller->cursor_dimensions.x,
+                           controller->cursor_position.y+controller->cursor_dimensions.y, 1.0F);
 }
 
 static inline void update_cursor_visibility(struct playerController *controller, bool visible) {
@@ -50,12 +51,12 @@ static inline mat4s getCameraModel(struct sphericalCoord coord) {
 static inline void onMousePositionCursor(struct playerController *controller,
                               struct eventBrokerMousePosition *args) {
         vec2s windowSize = game_getWindowDimensions(controller->game);
-        vec2s cursorPosition = {
+        vec2s cursor_position = {
                 .x = glm_clamp((float)args->xpos, 0, windowSize.x),
                 .y = glm_clamp((float)args->ypos, 0, windowSize.y),
         };
-        game_setCursorPosition(controller->game, cursorPosition);
-        controller->cursorPosition = cursorPosition;
+        game_setCursorPosition(controller->game, cursor_position);
+        controller->cursor_position = cursor_position;
 
         update_cursor_position(controller);
 }
@@ -67,12 +68,6 @@ static inline void onMousePositionCamera(struct playerController *controller,
                 .y = (float)args->ypos,
         };
 
-        struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
-        struct object *pc = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
-        struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
-        struct transform *pc_trans = object_getComponent(pc, COMPONENT_TRANSFORM);
-
         if (controller->first_camera_look) {
                 controller->previous_camera_look_mouse_position = current;
                 controller->first_camera_look = false;
@@ -83,32 +78,34 @@ static inline void onMousePositionCamera(struct playerController *controller,
 
         float yaw_delta = game_timeDelta(controller->game)*look_sensitivity*offset.x;
         switch (controller->camera_mode) {
-        case CAMERA_MODE_CURSOR:
-                // impossible
-                break;
         case CAMERA_MODE_LOOK:
                 controller->camera_position.yaw += yaw_delta;
                 controller->camera_position.yaw = normalize_yaw(controller->camera_position.yaw);
+                controller->camera_yaw_animation_ongoing = false; // stop animating camera to the back if we move it before animation is complete
                 break;
         case CAMERA_MODE_CONTROL:
+                controller->pc_rotation += controller->camera_position.yaw - camera_pos_yaw_behind;
+                controller->camera_position.yaw = camera_pos_yaw_behind;
+                __attribute__((fallthrough));
         case CAMERA_MODE_ONEHAND:
-                transform_rotateZ(pc_trans, yaw_delta);
+                controller->pc_rotation += yaw_delta;
                 break;
+        case CAMERA_MODE_CURSOR:
         default:
                 assert_fail();
         }
 
         controller->camera_position.pitch += game_timeDelta(controller->game)*look_sensitivity*offset.y;
         controller->camera_position.pitch = glm_clamp(controller->camera_position.pitch, 0.05f, GLM_PI_2f - 0.05f);
-        
-        camera_trans->model = getCameraModel(controller->camera_position);
+
+        controller->camera_needs_update = true;
         controller->previous_camera_look_mouse_position = current;
 }
 
-static inline bool onAnimateCameraDistance(struct playerController *controller, struct eventBrokerUpdate *args) {
+static inline void onAnimateCameraDistance(struct playerController *controller, struct eventBrokerUpdate *args) {
         float diff = controller->camera_distance_goal - controller->camera_position.distance;
         if (ABS(diff) <= camera_zoom_animation_stop) {
-                return false;
+                return;
         }
         
         controller->camera_position.distance += diff * camera_zoom_animation_rate * args->timeDelta;
@@ -117,41 +114,75 @@ static inline bool onAnimateCameraDistance(struct playerController *controller, 
         } else {
                 controller->camera_position.distance = glm_clamp(controller->camera_position.distance, controller->camera_distance_goal, camera_distance_max);
         }
-
-        return true;
+        
+        controller->camera_needs_update = true;
 }
 
-static inline bool onAnimateCameraYaw(struct playerController *controller, struct eventBrokerUpdate *args) {
+static inline void onAnimateCameraYaw(struct playerController *controller, struct eventBrokerUpdate *args) {
         if (!controller->camera_yaw_animation_ongoing) {
-                return false;
+                return;
         }
 
         float diff = camera_pos_yaw_behind - controller->camera_position.yaw;
         if (ABS(diff) <= camera_pos_yaw_animation_stop) {
                 controller->camera_yaw_animation_ongoing = false;
-                return false;
+                return;
         }
 
         controller->camera_position.yaw += diff * camera_pos_yaw_animation_rate * args->timeDelta;
         controller->camera_position.yaw = normalize_yaw(controller->camera_position.yaw);
 
-        return true;
+        controller->camera_needs_update = true;
 }
 
 static void onUpdate(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerUpdate *args = fireArgs;
 
-        bool runUpdate = false;
-        runUpdate |= onAnimateCameraDistance(controller, args);
-        runUpdate |= onAnimateCameraYaw(controller, args);
+        onAnimateCameraDistance(controller, args);
+        onAnimateCameraYaw(controller, args);
 
-        if (runUpdate) {
-                struct scene *scene = game_getCurrentScene(controller->game);
+        struct scene *scene = NULL;
+        
+        if (controller->camera_needs_update) {
+                scene = game_getCurrentScene(controller->game);
                 struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
                 struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
                 camera_trans->model = getCameraModel(controller->camera_position);
         }
+        controller->camera_needs_update = false;
+
+        struct transform *pc_trans = NULL;
+        
+        if (ABS(controller->pc_rotation) > movement_vector_zero) {
+                if (scene == NULL) {
+                        scene = game_getCurrentScene(controller->game);
+                }
+                pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
+                transform_rotateZ(pc_trans, normalize_yaw(controller->pc_rotation));
+        }
+        controller->pc_rotation = 0;
+
+        if (ABS(controller->pc_movement_direction.x) > movement_vector_zero ||
+            ABS(controller->pc_movement_direction.y) > movement_vector_zero) {
+                vec2s movement_direction = glms_vec2_scale(
+                        glms_vec2_normalize(controller->pc_movement_direction),
+                        game_timeDelta(controller->game)*movement_speed);
+                if (scene == NULL) {
+                        scene = game_getCurrentScene(controller->game);
+                }
+                if (pc_trans == NULL) {
+                        pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
+                }
+                
+                if (ABS(movement_direction.x) > movement_vector_zero) {
+                        transform_translateX(pc_trans, movement_direction.x);
+                }
+                if (ABS(movement_direction.y) > movement_vector_zero) {
+                        transform_translateY(pc_trans, movement_direction.y);
+                }
+        }
+        controller->pc_movement_direction = GLMS_VEC2_ZERO;
 }
 
 static void onMousePosition(void *registerArgs, void *fireArgs) {
@@ -210,6 +241,13 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
                         case CAMERA_MODE_LOOK:
                                 // should already be invisible
                                 update_cursor_visibility(controller, false);
+                                
+                                // character must face where camera was
+                                // pointing and camera must return behind it
+                                controller->pc_rotation += controller->camera_position.yaw - camera_pos_yaw_behind;
+                                controller->camera_position.yaw = camera_pos_yaw_behind;
+                                controller->camera_needs_update = true;
+                                
                                 controller->camera_mode = CAMERA_MODE_ONEHAND;
                                 break;
                         case CAMERA_MODE_CONTROL:
@@ -230,11 +268,11 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
                         case CAMERA_MODE_CURSOR:
                                 // should be impossible
                                 update_cursor_visibility(controller, true);
-                                game_setCursorPosition(controller->game, controller->cursorPosition);
+                                game_setCursorPosition(controller->game, controller->cursor_position);
                                 break;
                         case CAMERA_MODE_LOOK:
                                 update_cursor_visibility(controller, true);
-                                game_setCursorPosition(controller->game, controller->cursorPosition);
+                                game_setCursorPosition(controller->game, controller->cursor_position);
                                 controller->camera_mode = CAMERA_MODE_CURSOR;
                                 break;
                         case CAMERA_MODE_CONTROL:
@@ -242,7 +280,7 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
                                 update_cursor_visibility(controller, true);
                                 break;
                         case CAMERA_MODE_ONEHAND:
-                                update_cursor_visibility(controller, true);
+                                update_cursor_visibility(controller, false);
                                 controller->camera_mode = CAMERA_MODE_CONTROL;
                                 break;
                         default:
@@ -253,7 +291,7 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
                         case CAMERA_MODE_CURSOR:
                                 // should be impossible
                                 update_cursor_visibility(controller, true);
-                                game_setCursorPosition(controller->game, controller->cursorPosition);
+                                game_setCursorPosition(controller->game, controller->cursor_position);
                                 break;
                         case CAMERA_MODE_LOOK:
                                 // should be impossible
@@ -261,7 +299,7 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
                                 break;
                         case CAMERA_MODE_CONTROL:
                                 update_cursor_visibility(controller, true);
-                                game_setCursorPosition(controller->game, controller->cursorPosition);
+                                game_setCursorPosition(controller->game, controller->cursor_position);
                                 controller->camera_mode = CAMERA_MODE_CURSOR;
                                 break;
                         case CAMERA_MODE_ONEHAND:
@@ -284,14 +322,10 @@ static void onMouseScroll(void *registerArgs, void *fireArgs) {
 static void onMousePoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
-        struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *pc = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
-        struct transform *trans = object_getComponent(pc, COMPONENT_TRANSFORM);
 
-        controller->camera_yaw_animation_ongoing = false;
         if (game_mouseButtonPressed(controller->game, GLFW_MOUSE_BUTTON_LEFT) &&
             game_mouseButtonPressed(controller->game, GLFW_MOUSE_BUTTON_RIGHT)) {
-                transform_translateX(trans, game_timeDelta(controller->game)*movement_speed);
+                controller->pc_movement_direction.x += 1;
                 controller->camera_yaw_animation_ongoing = true;
         }
 }
@@ -299,70 +333,90 @@ static void onMousePoll(void *registerArgs, void *fireArgs) {
 static void onKeyboardPoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
-        struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *pc = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
-        struct transform *trans = object_getComponent(pc, COMPONENT_TRANSFORM);
 
-        bool key_pressed = false;
-        if (game_keyPressed(controller->game, GLFW_KEY_LEFT) ||
-            game_keyPressed(controller->game, GLFW_KEY_A)) {
-                switch (controller->camera_mode) {
-                case CAMERA_MODE_CURSOR:
-                case CAMERA_MODE_LOOK:
-                        transform_rotateZ(trans, game_timeDelta(controller->game)*spin_speed);
-                        break;
-                case CAMERA_MODE_CONTROL:
-                case CAMERA_MODE_ONEHAND:
-                        transform_translateY(trans, game_timeDelta(controller->game)*movement_speed);
-                        break;
-                default:
-                        assert_fail();
+        bool pc_left = game_keyPressed(controller->game, GLFW_KEY_A);
+        bool pc_right = game_keyPressed(controller->game, GLFW_KEY_D);
+        
+        bool cam_left = game_keyPressed(controller->game, GLFW_KEY_LEFT);
+        bool cam_right = game_keyPressed(controller->game, GLFW_KEY_RIGHT);
+        
+        bool up = game_keyPressed(controller->game, GLFW_KEY_UP) ||
+                game_keyPressed(controller->game, GLFW_KEY_W);
+        bool down = game_keyPressed(controller->game, GLFW_KEY_DOWN) ||
+                game_keyPressed(controller->game, GLFW_KEY_S);
+        
+        bool movement_initiated = up || down || pc_left || pc_right;
+        bool camera_movement_initiated = cam_left || cam_right;
+
+        float timeDelta = game_timeDelta(controller->game);
+        float spin = timeDelta*spin_speed;
+        float one = 1;
+
+        if ((cam_left || cam_right) && !(cam_left && cam_right)) {
+                if (cam_left) {
+                        controller->camera_position.yaw = normalize_yaw(controller->camera_position.yaw + spin);
+                } else {
+                        controller->camera_position.yaw = normalize_yaw(controller->camera_position.yaw - spin);
                 }
-                key_pressed = true;
-        }
-        if (game_keyPressed(controller->game, GLFW_KEY_RIGHT) ||
-            game_keyPressed(controller->game, GLFW_KEY_D)) {
-                switch (controller->camera_mode) {
-                case CAMERA_MODE_CURSOR:
-                case CAMERA_MODE_LOOK:
-                        transform_rotateZ(trans, -game_timeDelta(controller->game)*spin_speed);
-                        break;
-                case CAMERA_MODE_CONTROL:
-                case CAMERA_MODE_ONEHAND:
-                        transform_translateY(trans, -game_timeDelta(controller->game)*movement_speed);
-                        break;
-                default:
-                        assert_fail();
-                }
-                key_pressed = true;
-        }
-        if (game_keyPressed(controller->game, GLFW_KEY_UP) ||
-            game_keyPressed(controller->game, GLFW_KEY_W)) {
-                transform_translateX(trans, game_timeDelta(controller->game)*movement_speed);
-                key_pressed = true;
-        }
-        if (game_keyPressed(controller->game, GLFW_KEY_DOWN) ||
-            game_keyPressed(controller->game, GLFW_KEY_S)) {
-                transform_translateX(trans, -game_timeDelta(controller->game)*movement_speed);
-                key_pressed = true;
+                controller->camera_needs_update = true;
         }
         
-        controller->camera_yaw_animation_ongoing = false;
-        if (key_pressed && controller->camera_mode == CAMERA_MODE_CURSOR) {
+        if ((pc_left || pc_right) && !(pc_left && pc_right)) {
+                if (pc_right) {
+                        spin = -spin;
+                        one = -one;
+                }
+                
+                switch (controller->camera_mode) {
+                case CAMERA_MODE_LOOK:
+                        // adjust camera yaw so that camera doesn't move in
+                        // relation to pc, then update its transform too
+                        controller->camera_position.yaw = normalize_yaw(controller->camera_position.yaw - spin);
+                        controller->camera_needs_update = true;
+                        __attribute__((fallthrough));
+                case CAMERA_MODE_CURSOR:
+                        controller->pc_rotation += spin;
+                        break;
+                case CAMERA_MODE_CONTROL:
+                case CAMERA_MODE_ONEHAND:
+                        controller->pc_movement_direction.y += one;
+                        break;
+                default:
+                        assert_fail();
+                }
+        }
+
+        one = 1;
+        if ((up || down) && !(up && down)) {
+                if (down) {
+                        one = -one;
+                }
+                controller->pc_movement_direction.x += one;
+        }
+        
+        if (movement_initiated && controller->camera_mode == CAMERA_MODE_CURSOR) {
                 controller->camera_yaw_animation_ongoing = true;
+        }
+        if (camera_movement_initiated) {
+                // don't animate camera to the back if we're moving it
+                controller->camera_yaw_animation_ongoing = false;
         }
 }
 
 
-void playerController_setup(struct playerController *controller, const struct object *const camera, vec2s cursorDimensions, size_t cursor_idx) {
+void playerController_setup(struct playerController *controller, const struct object *const camera, vec2s cursor_dimensions, size_t cursor_idx) {
         controller->game = camera->game;
         
         controller->camera_idx = camera->idx;
         controller->playerCharacter_idx = camera->parent;
         controller->cursor_idx = cursor_idx;
+
+        controller->pc_movement_direction = GLMS_VEC2_ZERO;
+        controller->pc_rotation = 0;
+        controller->camera_needs_update = false;
         
-        controller->cursorDimensions = cursorDimensions;
-        controller->cursorPosition = glms_vec2_scale(game_getWindowDimensions(camera->game), 0.5);
+        controller->cursor_dimensions = cursor_dimensions;
+        controller->cursor_position = glms_vec2_scale(game_getWindowDimensions(camera->game), 0.5);
 
         controller->camera_position.distance = camera_distance_default;
         controller->camera_position.yaw = camera_pos_yaw_behind;
