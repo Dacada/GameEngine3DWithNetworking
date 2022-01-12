@@ -60,7 +60,7 @@ static void updateTitle(void *registerArgs, void *fireArgs) {
         if (count == FRAME_PERIOD_FPS_REFRESH) {
                 const int fps = (const int)(1.0F/game_timeDelta(game));
                 static char title[TITLE_BUFFER_SIZE];
-                snprintf(title, TITLE_BUFFER_SIZE, "[%d] Untitled trash MMO", fps);
+                snprintf(title, TITLE_BUFFER_SIZE, "[%d] Name goes here :)", fps);
                 game_updateWindowTitle(game, title);
                 count = 0;
         } else {
