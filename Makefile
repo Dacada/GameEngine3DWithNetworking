@@ -26,7 +26,7 @@ FONTS_PNG := $(patsubst $(ASSETS_DIR)/fonts/%.ftd,$(ASSETS_DIR)/textures/%.png,$
 CC := gcc
 
 CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
-LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` -lm -ldl -std=c11
+LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` -lm -ldl -pthread -std=c11
 
 CFLAGS_DEBUG := -MMD -Og -g -fno-omit-frame-pointer
 LDFLAGS_DEBUG := $(CFLAGS_DEBUG)
