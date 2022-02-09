@@ -31,6 +31,13 @@ struct playerController {
         
         bool first_camera_look;
         vec2s previous_camera_look_mouse_position;
+
+        bool pc_jumping;
+        bool pc_falling;
+        float pc_height_goal;
+        float pc_height_current;
+        float pc_ground_height;
+        bool player_height_needs_update;
         
         enum {
                 CAMERA_MODE_CURSOR,  // Mouse movement does not control camera,

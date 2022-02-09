@@ -14,6 +14,9 @@ static const float camera_pos_yaw_animation_stop = 1e-3f;
 static const float camera_pos_yaw_animation_rate = 8.0F;
 static const float camera_pos_pitch_initial = 1.25f;
 static const float movement_vector_zero = 1e-9f;
+static const float jump_height = 3.0f;
+static const float pc_height_animation_rate = 5.0f;
+static const float pc_height_animation_stop = 0.5f;
 
 static inline void update_cursor_position(struct playerController *controller) {
         ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
@@ -135,12 +138,35 @@ static inline void onAnimateCameraYaw(struct playerController *controller, struc
         controller->camera_needs_update = true;
 }
 
+static inline void onAnimatePlayerJumpFall(struct playerController *controller, struct eventBrokerUpdate *args) {
+        if (!controller->pc_jumping && !controller->pc_falling) {
+                return;
+        }
+
+        float diff = controller->pc_height_goal - controller->pc_height_current;
+        if (ABS(diff) <= pc_height_animation_stop) {
+                controller->pc_height_current = controller->pc_height_goal;
+                if (controller->pc_jumping) {
+                        controller->pc_jumping = false;
+                        controller->pc_falling = true;
+                        controller->pc_height_goal = controller->pc_ground_height;
+                } else {
+                        controller->pc_jumping = controller->pc_falling = false;
+                }
+                return;
+        }
+
+        controller->pc_height_current += diff * pc_height_animation_rate * args->timeDelta;
+        controller->player_height_needs_update = true;
+}
+
 static void onUpdate(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerUpdate *args = fireArgs;
 
         onAnimateCameraDistance(controller, args);
         onAnimateCameraYaw(controller, args);
+        onAnimatePlayerJumpFall(controller, args);
 
         struct scene *scene = NULL;
         
@@ -151,6 +177,14 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 camera_trans->model = getCameraModel(controller->camera_position);
         }
         controller->camera_needs_update = false;
+
+        if (controller->player_height_needs_update) {
+                scene = game_getCurrentScene(controller->game);
+                struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
+                struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
+                transform_setZ(player_trans, controller->pc_height_current);
+        }
+        controller->player_height_needs_update = false;
 
         struct transform *pc_trans = NULL;
         
@@ -403,6 +437,22 @@ static void onKeyboardPoll(void *registerArgs, void *fireArgs) {
         }
 }
 
+static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
+        struct playerController *controller = registerArgs;
+        struct eventBrokerKeyboardEvent *args = fireArgs;
+        const int key = args->key;
+        const int action = args->action;
+
+        if (action == GLFW_PRESS) {
+                if (key == GLFW_KEY_SPACE) {
+                        if (!controller->pc_jumping && !controller->pc_falling) {
+                                controller->pc_jumping = true;
+                                controller->pc_height_goal = controller->pc_ground_height + jump_height;
+                        }
+                }
+        }
+}
+
 
 void playerController_setup(struct playerController *controller, const struct object *const camera, vec2s cursor_dimensions, size_t cursor_idx) {
         controller->game = camera->game;
@@ -425,17 +475,22 @@ void playerController_setup(struct playerController *controller, const struct ob
         controller->camera_yaw_animation_ongoing = false;
         
         controller->first_camera_look = true;
+
+        controller->pc_jumping = false;
+        controller->pc_falling = false;
+        controller->pc_height_goal = 0;
+        controller->pc_height_current = 0;
+        controller->pc_ground_height = 0; // TODO: find where floor below us is and calculate, update every time we move
+        controller->player_height_needs_update = false;
         
         controller->camera_mode = CAMERA_MODE_CURSOR;
 
-        
         eventBroker_register(onUpdate, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_UPDATE, controller);
-
         eventBroker_register(onMousePosition, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POSITION, controller);
         eventBroker_register(onMouseButton, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_BUTTON, controller);
         eventBroker_register(onMouseScroll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_SCROLL, controller);
+        eventBroker_register(onKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_KEYBOARD_EVENT, controller);
         eventBroker_register(onMousePoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
-
         eventBroker_register(onKeyboardPoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
 
         update_cursor_position(controller);
