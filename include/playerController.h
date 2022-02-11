@@ -1,6 +1,7 @@
 #ifndef PLAYER_CONTROLLER_H
 #define PLAYER_CONTROLLER_H
 
+#include <thirty/curve.h>
 #include <thirty/game.h>
 #include <cglm/struct.h>
 #include <stddef.h>
@@ -34,10 +35,11 @@ struct playerController {
 
         bool pc_jumping;
         bool pc_falling;
-        float pc_height_goal;
-        float pc_height_current;
-        float pc_ground_height;
+        float pc_airtime;
+        float pc_height;
         bool player_height_needs_update;
+
+        unsigned frames_since_last_position_update;
         
         enum {
                 CAMERA_MODE_CURSOR,  // Mouse movement does not control camera,

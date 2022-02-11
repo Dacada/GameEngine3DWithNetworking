@@ -192,8 +192,8 @@ int main(void) {
         playerController_setup(playerController, camera, (vec2s){.x=12, .y=17}, cursor_idx);
 
         // Setup network controller
-        /* struct networkController *networkController = smalloc(sizeof(struct networkController)); */
-        /* networkController_setup(networkController, game); */
+        struct networkController *networkController = smalloc(sizeof(struct networkController));
+        networkController_setup(networkController, game);
 
         // Add a skybox
         scene_setSkybox(scene, "skybox");
@@ -225,7 +225,7 @@ int main(void) {
         game_free(game);
 
         free(playerController);
-        /* free(networkController); */
+        free(networkController);
         free(network);
         free(game);
         

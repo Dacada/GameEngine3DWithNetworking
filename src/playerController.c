@@ -1,4 +1,5 @@
 #include <playerController.h>
+#include <events.h>
 #include <thirty/util.h>
 
 static const float movement_speed = 10.0F;
@@ -14,9 +15,21 @@ static const float camera_pos_yaw_animation_stop = 1e-3f;
 static const float camera_pos_yaw_animation_rate = 8.0F;
 static const float camera_pos_pitch_initial = 1.25f;
 static const float movement_vector_zero = 1e-9f;
-static const float jump_height = 3.0f;
-static const float pc_height_animation_rate = 5.0f;
-static const float pc_height_animation_stop = 0.5f;
+static const struct curve jump_curve = {
+        .p0=0.0f,
+        .c0=0.5f,
+        .c1=1.0f,
+        .p1=1.0f,
+};
+static const struct curve fall_curve = {
+        .p0=1.0f,
+        .c0=1.0f,
+        .c1=0.5f,
+        .p1=0.0f,
+};
+static const float jump_height = 5.0f;
+static const float jump_time = 0.5f;
+static const unsigned position_update_period = 60;
 
 static inline void update_cursor_position(struct playerController *controller) {
         ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
@@ -142,22 +155,36 @@ static inline void onAnimatePlayerJumpFall(struct playerController *controller, 
         if (!controller->pc_jumping && !controller->pc_falling) {
                 return;
         }
+        controller->player_height_needs_update = true;
 
-        float diff = controller->pc_height_goal - controller->pc_height_current;
-        if (ABS(diff) <= pc_height_animation_stop) {
-                controller->pc_height_current = controller->pc_height_goal;
+        controller->pc_airtime += args->timeDelta;
+        float s = controller->pc_airtime / jump_time;
+        if (s > 1) {
                 if (controller->pc_jumping) {
+                        s -= 1;
+                        controller->pc_airtime = s * jump_time;
                         controller->pc_jumping = false;
                         controller->pc_falling = true;
-                        controller->pc_height_goal = controller->pc_ground_height;
                 } else {
                         controller->pc_jumping = controller->pc_falling = false;
+                        controller->pc_height = 0;
+                        // TODO: if terrain height is ever supported this needs to change to a smooth transition (probably)
+                        return;
                 }
-                return;
         }
 
-        controller->pc_height_current += diff * pc_height_animation_rate * args->timeDelta;
-        controller->player_height_needs_update = true;
+        float v;
+        if (controller->pc_jumping) {
+                v = curve_sample(&jump_curve, s);
+        } else if (controller->pc_falling) {
+                v = curve_sample(&fall_curve, s);
+        } else {
+                // shouldn't happen
+                v = 0;
+        }
+        v *= jump_height;
+
+        controller->pc_height = v;
 }
 
 static void onUpdate(void *registerArgs, void *fireArgs) {
@@ -182,7 +209,7 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 scene = game_getCurrentScene(controller->game);
                 struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
                 struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
-                transform_setZ(player_trans, controller->pc_height_current);
+                transform_setZ(player_trans, controller->pc_height);
         }
         controller->player_height_needs_update = false;
 
@@ -197,6 +224,7 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         }
         controller->pc_rotation = 0;
 
+        controller->frames_since_last_position_update += 1;
         if (ABS(controller->pc_movement_direction.x) > movement_vector_zero ||
             ABS(controller->pc_movement_direction.y) > movement_vector_zero) {
                 vec2s movement_direction = glms_vec2_scale(
@@ -214,6 +242,12 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 }
                 if (ABS(movement_direction.y) > movement_vector_zero) {
                         transform_translateY(pc_trans, movement_direction.y);
+                }
+                if (controller->frames_since_last_position_update >= position_update_period) {
+                        static struct eventPlayerPositionUpdate args;
+                        args.position = glms_vec3(pc_trans->model.col[3]);
+                        eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_POSITION_NEEDS_UPDATE, &args);
+                        controller->frames_since_last_position_update = 0;
                 }
         }
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
@@ -447,7 +481,14 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
                 if (key == GLFW_KEY_SPACE) {
                         if (!controller->pc_jumping && !controller->pc_falling) {
                                 controller->pc_jumping = true;
-                                controller->pc_height_goal = controller->pc_ground_height + jump_height;
+                                controller->pc_airtime = 0;
+
+                                static struct eventPlayerJumped args;
+                                struct scene *scene = game_getCurrentScene(controller->game);
+                                struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
+                                struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
+                                args.position = glms_vec3(player_trans->model.col[3]);
+                                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_JUMPED, &args);
                         }
                 }
         }
@@ -478,10 +519,11 @@ void playerController_setup(struct playerController *controller, const struct ob
 
         controller->pc_jumping = false;
         controller->pc_falling = false;
-        controller->pc_height_goal = 0;
-        controller->pc_height_current = 0;
-        controller->pc_ground_height = 0; // TODO: find where floor below us is and calculate, update every time we move
+        controller->pc_airtime = 0;
+        controller->pc_height = 0;
         controller->player_height_needs_update = false;
+
+        controller->frames_since_last_position_update = 0;
         
         controller->camera_mode = CAMERA_MODE_CURSOR;
 
