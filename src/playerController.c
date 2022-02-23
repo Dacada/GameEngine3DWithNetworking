@@ -2,8 +2,7 @@
 #include <events.h>
 #include <thirty/util.h>
 
-static const float movement_speed = 10.0F;
-static const float spin_speed = 2.0F;
+#include <movementConstants.h>
 static const float look_sensitivity = 0.1F;
 static const float camera_distance_min = 2.0F;
 static const float camera_distance_max = 10.0F;
@@ -15,21 +14,6 @@ static const float camera_pos_yaw_animation_stop = 1e-3f;
 static const float camera_pos_yaw_animation_rate = 8.0F;
 static const float camera_pos_pitch_initial = 1.25f;
 static const float movement_vector_zero = 1e-9f;
-static const struct curve jump_curve = {
-        .p0=0.0f,
-        .c0=0.5f,
-        .c1=1.0f,
-        .p1=1.0f,
-};
-static const struct curve fall_curve = {
-        .p0=1.0f,
-        .c0=1.0f,
-        .c1=0.5f,
-        .p1=0.0f,
-};
-static const float jump_height = 5.0f;
-static const float jump_time = 0.5f;
-static const unsigned position_update_period = 60;
 
 static inline void update_cursor_position(struct playerController *controller) {
         ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
@@ -66,10 +50,10 @@ static inline mat4s getCameraModel(struct sphericalCoord coord) {
 
 static inline void onMousePositionCursor(struct playerController *controller,
                               struct eventBrokerMousePosition *args) {
-        vec2s windowSize = game_getWindowDimensions(controller->game);
+        struct ui *ui = game_getCurrentUi(controller->game);
         vec2s cursor_position = {
-                .x = glm_clamp((float)args->xpos, 0, windowSize.x),
-                .y = glm_clamp((float)args->ypos, 0, windowSize.y),
+                .x = glm_clamp((float)args->xpos, 0, (float)ui->width),
+                .y = glm_clamp((float)args->ypos, 0, (float)ui->height),
         };
         game_setCursorPosition(controller->game, cursor_position);
         controller->cursor_position = cursor_position;
@@ -191,51 +175,72 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerUpdate *args = fireArgs;
 
+        struct scene *scene = game_getCurrentScene(controller->game);
+        struct transform *pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
+
+        // play animation frames
         onAnimateCameraDistance(controller, args);
         onAnimateCameraYaw(controller, args);
         onAnimatePlayerJumpFall(controller, args);
 
-        struct scene *scene = NULL;
-        
+        // Trigger direction changed event
+        bool direction_changed = ABS(controller->pc_movement_direction.x - controller->pc_last_movement_direction.x) > movement_vector_zero;
+        direction_changed |= ABS(controller->pc_movement_direction.y - controller->pc_last_movement_direction.y) > movement_vector_zero;
+        if (direction_changed) {
+                struct eventPlayerDirectionChange event_args;
+                event_args.position = glms_vec3(pc_trans->model.col[3]);
+                mat4s r;
+                vec3s s;
+                glms_decompose_rs(pc_trans->model, &r, &s);
+                vec3s rot = glms_euler_angles(r);
+                event_args.orientation = rot.z;
+                event_args.direction = controller->pc_movement_direction;
+                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_DIRECTION_CHANGED, &event_args);
+        }
+        controller->pc_last_movement_direction = controller->pc_movement_direction;
+
+        // Trigger rotation changed event
+        bool rotation_changed = ABS(controller->pc_rotation - controller->pc_last_rotation) > movement_vector_zero;
+        if (rotation_changed) {
+                struct eventPlayerRotationChange event_args;
+                event_args.position = glms_vec3(pc_trans->model.col[3]);
+                mat4s r;
+                vec3s s;
+                glms_decompose_rs(pc_trans->model, &r, &s);
+                vec3s rot = glms_euler_angles(r);
+                event_args.orientation = rot.z;
+                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, &event_args);
+        }
+        controller->pc_last_rotation = controller->pc_rotation;
+
+        // update camera if needed
         if (controller->camera_needs_update) {
-                scene = game_getCurrentScene(controller->game);
                 struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
                 struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
                 camera_trans->model = getCameraModel(controller->camera_position);
         }
         controller->camera_needs_update = false;
 
+        // update player height if needed
         if (controller->player_height_needs_update) {
                 scene = game_getCurrentScene(controller->game);
-                struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
-                struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
-                transform_setZ(player_trans, controller->pc_height);
+                transform_setZ(pc_trans, controller->pc_height);
         }
         controller->player_height_needs_update = false;
 
-        struct transform *pc_trans = NULL;
-        
+        // update player rotation if needed
         if (ABS(controller->pc_rotation) > movement_vector_zero) {
-                if (scene == NULL) {
-                        scene = game_getCurrentScene(controller->game);
-                }
                 pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
                 transform_rotateZ(pc_trans, normalize_yaw(controller->pc_rotation));
         }
         controller->pc_rotation = 0;
 
-        controller->frames_since_last_position_update += 1;
+        // update player position if needed
         if (ABS(controller->pc_movement_direction.x) > movement_vector_zero ||
             ABS(controller->pc_movement_direction.y) > movement_vector_zero) {
                 vec2s movement_direction = glms_vec2_scale(
                         glms_vec2_normalize(controller->pc_movement_direction),
                         game_timeDelta(controller->game)*movement_speed);
-                if (scene == NULL) {
-                        scene = game_getCurrentScene(controller->game);
-                }
-                if (pc_trans == NULL) {
-                        pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
-                }
                 
                 if (ABS(movement_direction.x) > movement_vector_zero) {
                         transform_translateX(pc_trans, movement_direction.x);
@@ -243,14 +248,14 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 if (ABS(movement_direction.y) > movement_vector_zero) {
                         transform_translateY(pc_trans, movement_direction.y);
                 }
-                if (controller->frames_since_last_position_update >= position_update_period) {
-                        static struct eventPlayerPositionUpdate args;
-                        args.position = glms_vec3(pc_trans->model.col[3]);
-                        eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_POSITION_NEEDS_UPDATE, &args);
-                        controller->frames_since_last_position_update = 0;
-                }
         }
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
+
+        /* mat4s r; */
+        /* vec3s s; */
+        /* glms_decompose_rs(pc_trans->model, &r, &s); */
+        /* vec3s rot = glms_euler_angles(r); */
+        /* fprintf(stderr, "player - pos:%f,%f,%f - rot:%f\n", pc_trans->model.col[3].x, pc_trans->model.col[3].y, pc_trans->model.col[3].z, rot.z); */
 }
 
 static void onMousePosition(void *registerArgs, void *fireArgs) {
@@ -483,15 +488,30 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
                                 controller->pc_jumping = true;
                                 controller->pc_airtime = 0;
 
-                                static struct eventPlayerJumped args;
+                                struct eventPlayerJumped event_args;
                                 struct scene *scene = game_getCurrentScene(controller->game);
                                 struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
                                 struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
-                                args.position = glms_vec3(player_trans->model.col[3]);
-                                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_JUMPED, &args);
+                                event_args.position = glms_vec3(player_trans->model.col[3]);
+                                mat4s r;
+                                vec3s s;
+                                glms_decompose_rs(player_trans->model, &r, &s);
+                                vec3s rot = glms_euler_angles(r);
+                                event_args.orientation = rot.z;
+                                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_JUMPED, &event_args);
                         }
                 }
         }
+}
+
+static void onPositionCorrection(void *registerArgs, void *fireArgs) {
+        struct playerController *controller = registerArgs;
+        struct eventPlayerPositionCorrected *args = fireArgs;
+        
+        struct scene *scene = game_getCurrentScene(controller->game);
+        struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
+        struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
+        transform_set(player_trans, args->position);
 }
 
 
@@ -503,11 +523,16 @@ void playerController_setup(struct playerController *controller, const struct ob
         controller->cursor_idx = cursor_idx;
 
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
+        controller->pc_last_movement_direction = GLMS_VEC2_ZERO;
         controller->pc_rotation = 0;
+        controller->pc_last_rotation = 0;
         controller->camera_needs_update = false;
         
         controller->cursor_dimensions = cursor_dimensions;
-        controller->cursor_position = glms_vec2_scale(game_getWindowDimensions(camera->game), 0.5);
+        
+        struct ui *ui = game_getCurrentUi(controller->game);
+        controller->cursor_position.x = (float)ui->width/2;
+        controller->cursor_position.y = (float)ui->height/2;
 
         controller->camera_position.distance = camera_distance_default;
         controller->camera_position.yaw = camera_pos_yaw_behind;
@@ -522,8 +547,6 @@ void playerController_setup(struct playerController *controller, const struct ob
         controller->pc_airtime = 0;
         controller->pc_height = 0;
         controller->player_height_needs_update = false;
-
-        controller->frames_since_last_position_update = 0;
         
         controller->camera_mode = CAMERA_MODE_CURSOR;
 
@@ -534,6 +557,7 @@ void playerController_setup(struct playerController *controller, const struct ob
         eventBroker_register(onKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_KEYBOARD_EVENT, controller);
         eventBroker_register(onMousePoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
         eventBroker_register(onKeyboardPoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
+        eventBroker_register(onPositionCorrection, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_PLAYER_POSITION_CORRECTED, controller);
 
         update_cursor_position(controller);
         update_cursor_visibility(controller, true);

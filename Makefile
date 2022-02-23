@@ -7,16 +7,27 @@ INCLUDE_DIR := include
 ASSETS_DIR := assets
 
 SOURCES := $(wildcard $(SRC_DIR)/*.c)
+SOURCES_SERVER := $(SRC_DIR)/server.c
+SOURCES := $(filter-out $(SOURCES_SERVER),$(SOURCES))
+SOURCES_SERVER := $(SOURCES_SERVER) $(SRC_DIR)/curve.c
 
 OBJECTS_DEBUG := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_dbg.o,$(SOURCES))
 OBJECTS_RELEASE := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_rel.o,$(SOURCES))
 OBJECTS_DEVELOP := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_dev.o,$(SOURCES))
 
+OBJECTS_SERVER_DEBUG := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_dbg.o,$(SOURCES_SERVER))
+OBJECTS_SERVER_RELEASE := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_rel.o,$(SOURCES_SERVER))
+OBJECTS_SERVER_DEVELOP := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_dev.o,$(SOURCES_SERVER))
+
 DEPENDS_DEBUG := $(OBJECTS_DEBUG:.o=.d)
 DEPENDS_RELEASE := $(OBJECTS_RELEASE:.o=.d)
 DEPENDS_DEVELOP := $(OBJECTS_DEVELOP:.o=.d)
 
-TARGETS := $(BIN_DIR)/main_dbg $(BIN_DIR)/main_rel $(BIN_DIR)/main_dev
+DEPENDS_SERVER_DEBUG := $(OBJECTS_SERVER_DEBUG:.o=.d)
+DEPENDS_SERVER_RELEASE := $(OBJECTS_SERVER_RELEASE:.o=.d)
+DEPENDS_SERVER_DEVELOP := $(OBJECTS_SERVER_DEVELOP:.o=.d)
+
+TARGETS := $(BIN_DIR)/main_dbg $(BIN_DIR)/main_rel $(BIN_DIR)/main_dev $(BIN_DIR)/server_dbg $(BIN_DIR)/server_rel $(BIN_DIR)/server_dev
 
 FONTS_FTD := $(ASSETS_DIR)/fonts/Cabin-Regular_36_latin-1.ftd
 FONTS_FTD += $(ASSETS_DIR)/fonts/CutiveMono-Regular_24_latin-1.ftd
@@ -25,8 +36,11 @@ FONTS_PNG := $(patsubst $(ASSETS_DIR)/fonts/%.ftd,$(ASSETS_DIR)/textures/%.png,$
 
 CC := gcc
 
-CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
-LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` -lm -ldl -pthread -std=c11
+CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` `pkg-config --cflags libenet` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
+LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` `pkg-config --libs libenet` -lm -ldl -std=c11
+
+CFLAGS_SERVER := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags libenet` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
+LDFLAGS_SERVER := `pkg-config --libs libenet` -lm -ldl -std=c11
 
 CFLAGS_DEBUG := -MMD -Og -g -fno-omit-frame-pointer
 LDFLAGS_DEBUG := $(CFLAGS_DEBUG)
@@ -51,9 +65,9 @@ endef
 
 .PHONY: dbg dev rel clearfonts clean veryclean purify impolute etags glad_rel glad_dbg fonts valgrind static-analysis
 
-rel: stb_img glad_rel fonts $(BIN_DIR)/main
-dev: stb_img glad_dbg fonts etags $(BIN_DIR)/main_dev
-dbg: stb_img glad_dbg fonts $(BIN_DIR)/main_dbg
+rel: stb_img glad_rel fonts $(BIN_DIR)/main $(BIN_DIR)/server
+dev: stb_img glad_dbg fonts etags $(BIN_DIR)/main_dev $(BIN_DIR)/server_dev
+dbg: stb_img glad_dbg fonts $(BIN_DIR)/main_dbg $(BIN_DIR)/server_dbg
 
 glad_rel:
 	make glad_rel -C lib/thirty
@@ -113,6 +127,18 @@ $(BIN_DIR)/main_dbg: $(OBJECTS_DEBUG) lib/thirty/bin/thirty_dbg.a
 $(BIN_DIR)/main_rel: $(OBJECTS_RELEASE) lib/thirty/bin/thirty.a
 $(BIN_DIR)/main_dev: $(OBJECTS_DEVELOP) lib/thirty/bin/thirty_dev.a
 
+$(BIN_DIR)/server_dbg: LDFLAGS := $(LDFLAGS_SERVER) $(LDFLAGS_DEBUG)
+$(BIN_DIR)/server_rel: LDFLAGS := $(LDFLAGS_SERVER) $(LDFLAGS_RELEASE)
+$(BIN_DIR)/server_dev: LDFLAGS := $(LDFLAGS_SERVER) $(LDFLAGS_DEVELOP)
+
+$(BIN_DIR)/server_dbg: $(OBJECTS_SERVER_DEBUG)
+$(BIN_DIR)/server_rel: $(OBJECTS_SERVER_RELEASE)
+$(BIN_DIR)/server_dev: $(OBJECTS_SERVER_DEVELOP)
+
+$(OBJECTS_SERVER_DEBUG): CFLAGS := $(CFLAGS_SERVER)
+$(OBJECTS_SERVER_RELEASE): CFLAGS := $(CFLAGS_SERVER)
+$(OBJECTS_SERVER_DEVELOP): CFLAGS := $(CFLAGS_SERVER)
+
 $(OBJ_DIR)/%_dbg.o: CFLAGS += $(CFLAGS_DEBUG)
 $(OBJ_DIR)/%_rel.o: CFLAGS += $(CFLAGS_RELEASE)
 $(OBJ_DIR)/%_dev.o: CFLAGS += $(CFLAGS_DEVELOP)
@@ -136,6 +162,9 @@ $(TARGETS):
 	$(CC) $(LDFLAGS) $^ -o $@
 
 $(BIN_DIR)/main: $(BIN_DIR)/main_rel
+	cp $< $@
+
+$(BIN_DIR)/server: $(BIN_DIR)/server_rel
 	cp $< $@
 
 
@@ -168,3 +197,6 @@ lib/BitmapFontGenerator/venv: lib/BitmapFontGenerator/requirements.txt
 -include $(DEPENDS_DEBUG)
 -include $(DEPENDS_RELEASE)
 -include $(DEPENDS_DEVELOP)
+-include $(DEPENDS_SERVER_DEBUG)
+-include $(DEPENDS_SERVER_RELEASE)
+-include $(DEPENDS_SERVER_DEVELOP)
