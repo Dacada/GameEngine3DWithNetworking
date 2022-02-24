@@ -146,7 +146,7 @@ static void send_client_idx(ENetPeer *const client, unsigned long idx) {
                 nwPlayer->orientation = player->orientation;
                 nwPlayer->airtime = player->airtime;
                 nwPlayer->jumpingFalling = (uint8_t)player->jumping;
-                nwPlayer->jumpingFalling |= (uint8_t)player->falling << 1;
+                nwPlayer->jumpingFalling |= (uint8_t)(player->falling << 1);
         }
         
         ENetPacket *packet = enet_packet_create(data, data_size, ENET_PACKET_FLAG_RELIABLE);

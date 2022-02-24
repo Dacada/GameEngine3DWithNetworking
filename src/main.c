@@ -123,7 +123,8 @@ int main(void) {
 
         // Main loop
         game_run(game);
-        
+
+	networkController_unsetup(networkController);
         game_free(game);
 
         free(playerController);

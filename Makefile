@@ -110,6 +110,7 @@ valgrind: $(BIN_DIR)/main_dbg
 	         --track-origins=yes         			\
 	         --verbose                   			\
 	         --log-file=valgrind-out.txt 			\
+                 --keep-debuginfo=yes                           \
 	         $(BIN_DIR)/main_dbg
 
 lib/thirty/bin/thirty_dbg.a:

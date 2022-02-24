@@ -219,7 +219,7 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
 void networkController_setup(struct networkController *controller, struct game *game) {
         controller->game = game;
         controller->connected = false;
-        growingArray_init(controller->otherPlayers, sizeof(struct otherPlayer), 8);
+        growingArray_init(&controller->otherPlayers, sizeof(struct otherPlayer), 8);
         
         game_connect(game, 2, 0, 0, SERVER_HOST, SERVER_PORT, 0);
 
@@ -238,4 +238,8 @@ void networkController_setup(struct networkController *controller, struct game *
                              (enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, controller);
         eventBroker_register(onUpdate, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_UPDATE, controller);
+}
+
+void networkController_unsetup(struct networkController *controller) {
+  growingArray_destroy(&controller->otherPlayers);
 }

@@ -512,6 +512,8 @@ static void onPositionCorrection(void *registerArgs, void *fireArgs) {
         struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
         struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
         transform_set(player_trans, args->position);
+
+	fprintf(stderr, "**SERVER CORRECTED OUR POSITION**\n");
 }
 
 

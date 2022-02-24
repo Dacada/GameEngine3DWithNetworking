@@ -82,4 +82,8 @@ void networkController_setup(struct networkController *controller, struct game *
         __attribute__((access (read_only, 2)))
         __attribute__((nonnull));
 
+void networkController_unsetup(struct networkController *controller)
+        __attribute__((access (read_write, 1)))
+        __attribute__((nonnull));
+
 #endif /* NETWORK_CONTROLLER_H */
