@@ -139,6 +139,7 @@ int main(int argc, char *argv[]) {
 
         free(playerController);
         free(networkController);
+        free(entityController);
         free(game);
         
         return EXIT_SUCCESS;
