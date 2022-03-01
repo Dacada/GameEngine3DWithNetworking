@@ -63,7 +63,7 @@ define FIND_SYSHEADERS_CMD
 )
 endef
 
-.PHONY: dbg dev rel clearfonts clean veryclean purify impolute etags glad_rel glad_dbg fonts valgrind static-analysis
+.PHONY: dbg dev rel clearfonts clean veryclean purify impolute etags glad_rel glad_dbg fonts valgrind line-count
 
 rel: stb_img glad_rel fonts $(BIN_DIR)/main $(BIN_DIR)/server
 dev: stb_img glad_dbg fonts etags $(BIN_DIR)/main_dev $(BIN_DIR)/server_dev
@@ -112,6 +112,9 @@ valgrind: $(BIN_DIR)/main_dbg
 	         --log-file=valgrind-out.txt 			\
                  --keep-debuginfo=yes                           \
 	         $(BIN_DIR)/main_dbg
+
+line-count:
+	wc -l $(wildcard $(SRC_DIR)/*.c) $(wildcard $(INCLUDE_DIR)/*.h)
 
 lib/thirty/bin/thirty_dbg.a:
 	make dbg -C lib/thirty
