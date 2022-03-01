@@ -1,8 +1,8 @@
 #include <playerController.h>
+#include <entityUtils.h>
 #include <events.h>
 #include <thirty/util.h>
 
-#include <movementConstants.h>
 static const float look_sensitivity = 0.1F;
 static const float camera_distance_min = 2.0F;
 static const float camera_distance_max = 10.0F;
@@ -14,6 +14,7 @@ static const float camera_pos_yaw_animation_stop = 1e-3f;
 static const float camera_pos_yaw_animation_rate = 8.0F;
 static const float camera_pos_pitch_initial = 1.25f;
 static const float movement_vector_zero = 1e-9f;
+static const float spin_speed = 2.0F;
 
 static inline void update_cursor_position(struct playerController *controller) {
         ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
@@ -24,16 +25,6 @@ static inline void update_cursor_position(struct playerController *controller) {
 
 static inline void update_cursor_visibility(struct playerController *controller, bool visible) {
         ui_setQuadVisibility(game_getCurrentUi(controller->game), controller->cursor_idx, visible);
-}
-
-static inline float normalize_yaw(const float angle) {
-        if (angle < 0) {
-                return angle + 2*GLM_PIf;
-        } else if (angle > 2*GLM_PIf) {
-                return angle - 2*GLM_PIf;
-        } else {
-                return angle;
-        }
 }
 
 static inline mat4s getCameraModel(struct sphericalCoord coord) {
@@ -137,38 +128,12 @@ static inline void onAnimateCameraYaw(struct playerController *controller, struc
 
 static inline void onAnimatePlayerJumpFall(struct playerController *controller, struct eventBrokerUpdate *args) {
         if (!controller->pc_jumping && !controller->pc_falling) {
+                controller->pc_height = 0;
                 return;
         }
         controller->player_height_needs_update = true;
-
         controller->pc_airtime += args->timeDelta;
-        float s = controller->pc_airtime / jump_time;
-        if (s > 1) {
-                if (controller->pc_jumping) {
-                        s -= 1;
-                        controller->pc_airtime = s * jump_time;
-                        controller->pc_jumping = false;
-                        controller->pc_falling = true;
-                } else {
-                        controller->pc_jumping = controller->pc_falling = false;
-                        controller->pc_height = 0;
-                        // TODO: if terrain height is ever supported this needs to change to a smooth transition (probably)
-                        return;
-                }
-        }
-
-        float v;
-        if (controller->pc_jumping) {
-                v = curve_sample(&jump_curve, s);
-        } else if (controller->pc_falling) {
-                v = curve_sample(&fall_curve, s);
-        } else {
-                // shouldn't happen
-                v = 0;
-        }
-        v *= jump_height;
-
-        controller->pc_height = v;
+        controller->pc_height = jump_fall_animation(&controller->pc_jumping, &controller->pc_falling, controller->pc_airtime);
 }
 
 static void onUpdate(void *registerArgs, void *fireArgs) {
@@ -183,36 +148,6 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         onAnimateCameraYaw(controller, args);
         onAnimatePlayerJumpFall(controller, args);
 
-        // Trigger direction changed event
-        bool direction_changed = ABS(controller->pc_movement_direction.x - controller->pc_last_movement_direction.x) > movement_vector_zero;
-        direction_changed |= ABS(controller->pc_movement_direction.y - controller->pc_last_movement_direction.y) > movement_vector_zero;
-        if (direction_changed) {
-                struct eventPlayerDirectionChange event_args;
-                event_args.position = glms_vec3(pc_trans->model.col[3]);
-                mat4s r;
-                vec3s s;
-                glms_decompose_rs(pc_trans->model, &r, &s);
-                vec3s rot = glms_euler_angles(r);
-                event_args.orientation = rot.z;
-                event_args.direction = controller->pc_movement_direction;
-                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_DIRECTION_CHANGED, &event_args);
-        }
-        controller->pc_last_movement_direction = controller->pc_movement_direction;
-
-        // Trigger rotation changed event
-        bool rotation_changed = ABS(controller->pc_rotation - controller->pc_last_rotation) > movement_vector_zero;
-        if (rotation_changed) {
-                struct eventPlayerRotationChange event_args;
-                event_args.position = glms_vec3(pc_trans->model.col[3]);
-                mat4s r;
-                vec3s s;
-                glms_decompose_rs(pc_trans->model, &r, &s);
-                vec3s rot = glms_euler_angles(r);
-                event_args.orientation = rot.z;
-                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, &event_args);
-        }
-        controller->pc_last_rotation = controller->pc_rotation;
-
         // update camera if needed
         if (controller->camera_needs_update) {
                 struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
@@ -221,26 +156,31 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         }
         controller->camera_needs_update = false;
 
-        // update player height if needed
-        if (controller->player_height_needs_update) {
-                scene = game_getCurrentScene(controller->game);
-                transform_setZ(pc_trans, controller->pc_height);
-        }
-        controller->player_height_needs_update = false;
-
         // update player rotation if needed
         if (ABS(controller->pc_rotation) > movement_vector_zero) {
                 pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
                 transform_rotateZ(pc_trans, normalize_yaw(controller->pc_rotation));
+
+                // fire event                
+                mat4s r;
+                vec3s s;
+                glms_decompose_rs(pc_trans->model, &r, &s);
+                vec3s rot = glms_euler_angles(r);
+                struct eventPlayerRotationChanged data;
+                data.rotation = rot.z;
+                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, &data);
         }
         controller->pc_rotation = 0;
+
+        bool positionUpdated = false;
 
         // update player position if needed
         if (ABS(controller->pc_movement_direction.x) > movement_vector_zero ||
             ABS(controller->pc_movement_direction.y) > movement_vector_zero) {
+                positionUpdated = true;
                 vec2s movement_direction = glms_vec2_scale(
                         glms_vec2_normalize(controller->pc_movement_direction),
-                        game_timeDelta(controller->game)*movement_speed);
+                        game_timeDelta(controller->game)*PLAYER_SPEED);
                 
                 if (ABS(movement_direction.x) > movement_vector_zero) {
                         transform_translateX(pc_trans, movement_direction.x);
@@ -250,6 +190,21 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 }
         }
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
+
+        // update player height if needed
+        if (controller->player_height_needs_update) {
+                positionUpdated = true;
+                scene = game_getCurrentScene(controller->game);
+                transform_setZ(pc_trans, controller->pc_height);
+        }
+        controller->player_height_needs_update = false;
+
+        // fire event
+        if (positionUpdated) {
+                struct eventPlayerPositionChanged data;
+                data.position = glms_vec3(pc_trans->model.col[3]);
+                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_POSITION_CHANGED, &data);
+        }
 
         /* mat4s r; */
         /* vec3s s; */
@@ -488,17 +443,9 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
                                 controller->pc_jumping = true;
                                 controller->pc_airtime = 0;
 
-                                struct eventPlayerJumped event_args;
-                                struct scene *scene = game_getCurrentScene(controller->game);
-                                struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
-                                struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
-                                event_args.position = glms_vec3(player_trans->model.col[3]);
-                                mat4s r;
-                                vec3s s;
-                                glms_decompose_rs(player_trans->model, &r, &s);
-                                vec3s rot = glms_euler_angles(r);
-                                event_args.orientation = rot.z;
-                                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_JUMPED, &event_args);
+                                // fire jump event
+                                //struct eventPlayerJumped data;
+                                eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_JUMPED, NULL);
                         }
                 }
         }
@@ -513,7 +460,18 @@ static void onPositionCorrection(void *registerArgs, void *fireArgs) {
         struct transform *player_trans = object_getComponent(player, COMPONENT_TRANSFORM);
         transform_set(player_trans, args->position);
 
+        if (controller->pc_jumping || controller->pc_falling) {
+                if (!args->jumping && !args->falling) {
+                        controller->pc_height = 0;
+                        controller->player_height_needs_update = true;
+                        controller->pc_jumping = false;
+                        controller->pc_falling = false;
+                }
+        }
+
+#ifndef NDEBUG
 	fprintf(stderr, "**SERVER CORRECTED OUR POSITION**\n");
+#endif
 }
 
 
@@ -525,9 +483,7 @@ void playerController_setup(struct playerController *controller, const struct ob
         controller->cursor_idx = cursor_idx;
 
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
-        controller->pc_last_movement_direction = GLMS_VEC2_ZERO;
         controller->pc_rotation = 0;
-        controller->pc_last_rotation = 0;
         controller->camera_needs_update = false;
         
         controller->cursor_dimensions = cursor_dimensions;
@@ -559,7 +515,7 @@ void playerController_setup(struct playerController *controller, const struct ob
         eventBroker_register(onKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_KEYBOARD_EVENT, controller);
         eventBroker_register(onMousePoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
         eventBroker_register(onKeyboardPoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
-        eventBroker_register(onPositionCorrection, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_PLAYER_POSITION_CORRECTED, controller);
+        eventBroker_register(onPositionCorrection, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_SERVER_CORRECTED_PLAYER_POSITION, controller);
 
         update_cursor_position(controller);
         update_cursor_visibility(controller, true);

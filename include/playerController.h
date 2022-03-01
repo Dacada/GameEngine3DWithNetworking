@@ -23,9 +23,7 @@ struct playerController {
         vec2s cursor_position;
 
         vec2s pc_movement_direction;
-        vec2s pc_last_movement_direction;
         float pc_rotation;
-        float pc_last_rotation;
         bool camera_needs_update;
 
         struct sphericalCoord camera_position;
