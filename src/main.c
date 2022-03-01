@@ -112,6 +112,10 @@ int main(void) {
         struct networkController *networkController = smalloc(sizeof(struct networkController));
         networkController_setup(networkController, game);
 
+        // Setup entity controller
+        struct entityController *entityController = smalloc(sizeof(struct entityController));
+        entityController_setup(entityController, game);
+
         // Add a skybox
         scene_setSkybox(scene, "skybox");
 
@@ -124,7 +128,6 @@ int main(void) {
         // Main loop
         game_run(game);
 
-	networkController_unsetup(networkController);
         game_free(game);
 
         free(playerController);

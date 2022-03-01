@@ -1,77 +1,133 @@
-#define _GNU_SOURCE
-
 #include <networkController.h>
+#include <timeutil.h>
 #include <events.h>
 #include <thirty/util.h>
-#include <time.h>
 
-#define PACKET_SEND_RATELIMIT 50
-
-// TODO: related function in server
-static unsigned usign(float num) {
-        if (ABS(num) < 1e-9) {
-                return 0;
-        } else if (num > 0) {
-                return 1;
-        } else {
-                return 2;
-        }
-}
-
-// TODO: repeated in server and client
-static struct timespec monotonic(void) {
-        struct timespec tp = {0};
-        if (clock_gettime(CLOCK_MONOTONIC, &tp) == -1) {
-                perror("clock_gettime");
-        }
-        
-        return tp;
-}
-
-// TODO: repeated in server and client
-static unsigned long monotonic_difference(struct timespec a, struct timespec b) {
-        long sec = a.tv_sec - b.tv_sec;
-        if (sec < 0) {
-                return 0;
-        }
-        
-        long nsec = a.tv_nsec - b.tv_nsec;
-        if (nsec < 0) {
-                sec -= 1;
-                nsec = (long)1e9 + nsec;
-        }
-        
-        nsec += sec * (long)1e9;
-        if (nsec < 0) {
-                return 0;
-        }
-        return (unsigned long)nsec;
-}
-
-static int send_packet(ENetPeer *peer, enet_uint8 channel, const void *data, size_t dataSize, enet_uint32 flags, bool rateLimit) {
-        static bool first = true;
-        static struct timespec last_send;
-
-        bool should_send;
-        if (first) {
-                last_send = monotonic();
-                first = false;
-                should_send = true;
+static bool shouldSendPacket(bool *const sentMovementPacket, struct timespec *const lastMovementPacket) {
+        if (!*sentMovementPacket) {
+                *lastMovementPacket = monotonic();
+                *sentMovementPacket = true;
+                return true;
         } else {
                 struct timespec t = monotonic();
-                should_send = !rateLimit || monotonic_difference(t, last_send)/1000000 >= PACKET_SEND_RATELIMIT;
-                if (should_send) {
-                        last_send = t;
+                unsigned long diff_ns = monotonic_difference(t, *lastMovementPacket);
+                unsigned long diff_ms = diff_ns / 1000000;
+                if (diff_ms >= PACKET_SEND_RATELIMIT_MS) {
+                        *lastMovementPacket = t;
+                        return true;
                 }
-        }
-
-        if (should_send) {
-                ENetPacket *packet = enet_packet_create(data, dataSize, flags);
-                return enet_peer_send(peer, channel, packet);
-        } else {
-                return 0;
+                return false;
         }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void onPositionCorrectionPacket(struct networkController *const controller,
+                                 const struct networkPacketPositionCorrection *const packet) {
+        (void)controller;
+        struct eventPlayerPositionCorrected args;
+        args.position = packet->position;
+        args.jumping = packet->jumpFall & 0x1;
+        args.falling = packet->jumpFall & 0x2;
+        eventBroker_fire((enum eventBrokerEvent)EVENT_SERVER_CORRECTED_PLAYER_POSITION, &args);
+}
+static void onWelcomePacket(struct networkController *const controller,
+                            const struct networkPacketWelcome *const packet) {
+        controller->connected = true;
+        controller->id = packet->id;
+}
+static void onEntityChangesUpdate(struct networkController *const controller,
+                                  const struct networkPacketEntityChangesUpdate *const packet) {
+        (void)controller;
+        
+        if (packet->count == 0) {
+                fprintf(stderr, "WARNING: SPURIOUS PACKET RECEIVED!!\n");
+                return;
+        }
+        
+        for (size_t i=0; i<packet->count; i++) {
+                const struct networkPacketEntityChange *entity = &packet->entities[i];
+                if (entity->idx == controller->id) {
+                        continue;
+                }
+                fprintf(stderr, "onEntityChangesUpdate %u\n", entity->idx);
+                struct eventNetworkEntityUpdate args;
+                args.idx = entity->idx;
+                args.position = entity->position;
+                args.rotation = entity->rotation;
+                eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_UPDATE, &args);
+        }
+}
+
+static void onEntityNew(struct networkController *const controller,
+                        const struct networkPacketNewEntity *const packet) {
+        if (packet->idx == controller->id) {
+                return;
+        }
+        fprintf(stderr, "onEntityNew %u\n", packet->idx);
+
+        struct eventNetworkEntityNew args;
+        args.idx = packet->idx;
+        args.position = packet->position;
+        args.rotation = packet->rotation;
+        eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
+}
+
+static void onEntityDel(struct networkController *const controller,
+                        const struct networkPacketDelEntity *const packet) {
+        if (packet->idx == controller->id) {
+                return;
+        }
+        fprintf(stderr, "onEntityDel %u\n", packet->idx);
+        
+        struct eventNetworkEntityDel args;
+        args.idx = packet->idx;
+        eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_DEL, &args);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static void onControlPacket(struct networkController *const controller,
+                            const struct networkPacket *const packet) {
+        switch (packet->type) {
+        case PACKET_TYPE_WELCOME:
+                onWelcomePacket(controller, (const void*)packet);
+                break;
+        default:
+                fprintf(stderr, "unexpected control packet type %u\n", packet->type);
+                break;
+        }
+}
+static void onMovementPacket(struct networkController *const controller,
+                             const struct networkPacket *const packet) {
+        switch (packet->type) {
+        case PACKET_TYPE_POSITION_CORRECTION:
+                onPositionCorrectionPacket(controller, (const void*)packet);
+                break;
+        default:
+                fprintf(stderr, "unexpected control packet type %u\n", packet->type);
+                break;
+        }
+}
+static void onServerUpdatePacket(struct networkController *const controller,
+                                 const struct networkPacket *const packet) {
+        switch (packet->type) {
+        case PACKET_TYPE_ENTITY_CHANGES_UPDATE:
+                onEntityChangesUpdate(controller, (const void*)packet);
+                break;
+        case PACKET_TYPE_NEW_ENTITY:
+                onEntityNew(controller, (const void*)packet);
+                break;
+        case PACKET_TYPE_DEL_ENTITY:
+                onEntityDel(controller, (const void*)packet);
+                break;
+        default:
+                fprintf(stderr, "unexpected server update packet type %u\n", packet->type);
+                break;
+        }
+}
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void onConnected(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
@@ -81,24 +137,6 @@ static void onConnected(void *registerArgs, void *fireArgs) {
         (void)controller;
         fprintf(stderr, "connected to server\n");
 }
-
-static void onPositionCorrection(struct networkController *const controller, const struct networkPacketPositionCorrection *const packet) {
-        (void)controller;
-        struct eventPlayerPositionCorrected args;
-        args.position = packet->position;
-        eventBroker_fire((enum eventBrokerEvent)EVENT_PLAYER_POSITION_CORRECTED, &args);
-}
-
-static void onMovementPacket(struct networkController *const controller, const struct networkPacketMovement *const packet) {
-        switch (packet->base.type) {
-        case PACKET_TYPE_POSITION_CORRECTION:
-                onPositionCorrection(controller, (const void*)packet);
-                break;
-        default:
-                break;
-        }
-}
-
 static void onDisconnected(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         ENetEvent *event = ((ENetEvent*)fireArgs);
@@ -107,55 +145,30 @@ static void onDisconnected(void *registerArgs, void *fireArgs) {
         (void)event;
         fprintf(stderr, "disconnected from server\n");
 }
-
-static void onPlayerIdPacket(struct networkController *const controller, const struct networkPacketPlayerId *const packet) {
-        controller->connected = true;
-        controller->id = packet->id;
-        for (size_t i=0; i<packet->num_players; i++) {
-                const struct networkedPlayerStatus *nwPlayer = packet->players + i;
-                if (nwPlayer->id == packet->id) {
-                        continue;
-                }
-                
-                struct otherPlayer *player = growingArray_append(&controller->otherPlayers);
-                player->id = nwPlayer->id;
-                player->position = nwPlayer->position;
-                player->direction = nwPlayer->direction;
-                player->orientation = nwPlayer->orientation;
-                player->airtime = nwPlayer->airtime;
-                player->jumping = nwPlayer->jumpingFalling & 0x1;
-                player->falling = nwPlayer->jumpingFalling & 0x2;
-        }
-        fprintf(stderr, "id: %u and %lu players\n", controller->id, controller->otherPlayers.length);
-}
-
-static void onControlPacket(struct networkController *const controller, const struct networkPacket *const packet) {
-        switch (packet->type) {
-        case PACKET_TYPE_PLAYER_ID:
-                onPlayerIdPacket(controller, (const void*)packet);
-                break;
-        default:
-                break;
-        }
-}
-
 static void onReceived(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         ENetEvent *event = ((ENetEvent*)fireArgs);
 
         switch (event->channelID) {
-        case 0:
+        case NETWORK_CHANNEL_CONTROL:
                 onControlPacket(controller, (void*)event->packet->data);
                 break;
-        case 1:
+        case NETWORK_CHANNEL_MOVEMENT:
                 onMovementPacket(controller, (void*)event->packet->data);
                 break;
+        case NETWORK_CHANNEL_SERVER_UPDATES:
+                onServerUpdatePacket(controller, (void*)event->packet->data);
+                break;
         default:
+                fprintf(stderr, "PACKET RECEIVED ON UNEXPECTED CHANNEL %u\n",
+                        event->channelID);
                 break;
         }
 
         enet_packet_destroy(event->packet);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 static void onPlayerJumped(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
@@ -165,63 +178,64 @@ static void onPlayerJumped(void *registerArgs, void *fireArgs) {
                 return;
         }
 
+        (void)jumped;
         struct networkPacketJump data;
-        data.base.base.type = PACKET_TYPE_JUMP;
-        data.base.position = jumped->position;
-        data.base.orientation = jumped->orientation;
-        
-        send_packet(controller->game->server, 1, &data, sizeof(data), ENET_PACKET_FLAG_RELIABLE, false);
-}
+        data.base.type = PACKET_TYPE_JUMP_UPDATE;
 
-static void onPlayerDirectionChange(void *registerArgs, void *fireArgs) {
+        ENetPacket *packet = enet_packet_create(&data, sizeof(data), 0);
+        enet_peer_send(controller->game->server, NETWORK_CHANNEL_MOVEMENT, packet);
+}
+static void onPlayerPositionChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
-        struct eventPlayerDirectionChange *direction = fireArgs;
+        struct eventPlayerPositionChanged *pos = fireArgs;
 
         if (!controller->connected) {
                 return;
         }
 
-        struct networkPacketDirection data;
-        data.base.base.type = PACKET_TYPE_DIRECTION;
-        data.base.position = direction->position;
-        data.base.orientation = direction->orientation;
+        if (!shouldSendPacket(&controller->sentPosPacket,
+                              &controller->lastTimeSentPosPacket)) {
+                return;
+        }
 
-        data.direction = (uint8_t)(usign(direction->direction.x) & 0xF);
-        data.direction |= (uint8_t)((usign(direction->direction.y) & 0xF) << 4);
+        struct networkPacketPosition data;
+        data.base.type = PACKET_TYPE_POSITION_UPDATE;
+        data.position = pos->position;
 
-        send_packet(controller->game->server, 1, &data, sizeof(data), ENET_PACKET_FLAG_RELIABLE, true);
+        ENetPacket *packet = enet_packet_create(&data, sizeof(data), 0);
+        enet_peer_send(controller->game->server, NETWORK_CHANNEL_MOVEMENT, packet);
 }
-
-static void onPlayerRotationChange(void *registerArgs, void *fireArgs) {
+static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
-        struct eventPlayerRotationChange *rotation = fireArgs;
+        struct eventPlayerRotationChanged *rot = fireArgs;
 
         if (!controller->connected) {
+                return;
+        }
+
+        if (!shouldSendPacket(&controller->sentRotPacket,
+                              &controller->lastTimeSentRotPacket)) {
                 return;
         }
 
         struct networkPacketRotation data;
-        data.base.base.type = PACKET_TYPE_ROTATION;
-        data.base.position = rotation->position;
-        data.base.orientation = rotation->orientation;
+        data.base.type = PACKET_TYPE_ROTATION_UPDATE;
+        data.rotation = rot->rotation;
 
-        send_packet(controller->game->server, 1, &data, sizeof(data), ENET_PACKET_FLAG_RELIABLE, true);
+        ENetPacket *packet = enet_packet_create(&data, sizeof(data), 0);
+        enet_peer_send(controller->game->server, NETWORK_CHANNEL_MOVEMENT, packet);
 }
 
-static void onUpdate(void *registerArgs, void *fireArgs) {
-        struct networkController *controller = registerArgs;
-        float timeDelta = ((struct eventBrokerUpdate*)fireArgs)->timeDelta;
-
-        (void)controller;
-        (void)timeDelta;
-}
+////////////////////////////////////////////////////////////////////////////////
 
 void networkController_setup(struct networkController *controller, struct game *game) {
         controller->game = game;
         controller->connected = false;
-        growingArray_init(&controller->otherPlayers, sizeof(struct otherPlayer), 8);
         
-        game_connect(game, 2, 0, 0, SERVER_HOST, SERVER_PORT, 0);
+        controller->sentPosPacket = false;
+        controller->sentRotPacket = false;
+        
+        game_connect(game, NETWORK_CHANNELS_TOTAL, 0, 0, SERVER_HOST, SERVER_PORT, 0);
 
         eventBroker_register(onConnected, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_NETWORK_CONNECTED, controller);
@@ -232,14 +246,8 @@ void networkController_setup(struct networkController *controller, struct game *
 
         eventBroker_register(onPlayerJumped, EVENT_BROKER_PRIORITY_HIGH,
                              (enum eventBrokerEvent)EVENT_PLAYER_JUMPED, controller);
-        eventBroker_register(onPlayerDirectionChange, EVENT_BROKER_PRIORITY_HIGH,
-                             (enum eventBrokerEvent)EVENT_PLAYER_DIRECTION_CHANGED, controller);
-        eventBroker_register(onPlayerRotationChange, EVENT_BROKER_PRIORITY_HIGH,
+        eventBroker_register(onPlayerPositionChanged, EVENT_BROKER_PRIORITY_HIGH,
+                             (enum eventBrokerEvent)EVENT_PLAYER_POSITION_CHANGED, controller);
+        eventBroker_register(onPlayerRotationChanged, EVENT_BROKER_PRIORITY_HIGH,
                              (enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, controller);
-        eventBroker_register(onUpdate, EVENT_BROKER_PRIORITY_HIGH,
-                             EVENT_BROKER_UPDATE, controller);
-}
-
-void networkController_unsetup(struct networkController *controller) {
-  growingArray_destroy(&controller->otherPlayers);
 }

@@ -1,89 +1,103 @@
 #ifndef NETWORK_CONTROLLER_H
 #define NETWORK_CONTROLLER_H
 
+#include <timeutil.h>
+#include <entityController.h>
 #include <events.h>
 #include <thirty/game.h>
 
 #define SERVER_HOST "localhost"
 #define SERVER_PORT 8192
 
+#define PACKET_SEND_RATELIMIT_MS 50
+#define PACKET_SEND_RATELIMIT 0.05f
+
+enum networkChannel {
+        NETWORK_CHANNEL_CONTROL,
+        NETWORK_CHANNEL_MOVEMENT,
+        NETWORK_CHANNEL_SERVER_UPDATES,
+        NETWORK_CHANNELS_TOTAL,
+};
+
 struct networkController {
         struct game *game;
         bool connected;
         unsigned id;
-        struct growingArray otherPlayers;
-};
 
-struct otherPlayer {
-        unsigned id;
-        vec3s position;
-        vec2s direction;
-        float orientation;
-        float airtime;
-        bool jumping;
-        bool falling;
-};
+        bool sentPosPacket;
+        struct timespec lastTimeSentPosPacket;
 
-struct __attribute__((packed)) networkedPlayerStatus {
-        uint32_t id;
-        vec3s position;
-        vec2s direction;
-        float orientation;
-        float airtime;
-        uint8_t jumpingFalling;
+        bool sentRotPacket;
+        struct timespec lastTimeSentRotPacket;
 };
 
 enum packetType {
-        PACKET_TYPE_DIRECTION,
-        PACKET_TYPE_ROTATION,
-        PACKET_TYPE_JUMP,
+        PACKET_TYPE_POSITION_UPDATE,
+        PACKET_TYPE_ROTATION_UPDATE,
+        PACKET_TYPE_JUMP_UPDATE,
         PACKET_TYPE_POSITION_CORRECTION,
-        PACKET_TYPE_PLAYER_ID,
+        PACKET_TYPE_WELCOME,
+        PACKET_TYPE_ENTITY_CHANGES_UPDATE,
+        PACKET_TYPE_NEW_ENTITY,
+        PACKET_TYPE_DEL_ENTITY,
 };
-
 
 struct __attribute__((packed)) networkPacket {
         uint8_t type;
 };
 
-struct __attribute__((packed)) networkPacketPlayerId {
+struct __attribute__((packed)) networkPacketWelcome {
         struct networkPacket base;
-        uint32_t id;
-        uint16_t num_players;
-        struct networkedPlayerStatus players[];
+        uint16_t id;
 };
 
 struct __attribute__((packed)) networkPacketPositionCorrection {
         struct networkPacket base;
         vec3s position;
+        uint8_t jumpFall;
 };
 
-struct __attribute__((packed)) networkPacketMovement {
+struct __attribute__((packed)) networkPacketPosition {
         struct networkPacket base;
         vec3s position;
-        float orientation;
-};
-
-struct __attribute__((packed)) networkPacketDirection {
-        struct networkPacketMovement base;
-        uint8_t direction;
 };
 
 struct __attribute__((packed)) networkPacketRotation {
-        struct networkPacketMovement base;
+        struct networkPacket base;
+        float rotation;
 };
 
 struct __attribute__((packed)) networkPacketJump {
-        struct networkPacketMovement base;
+        struct networkPacket base;
+};
+
+struct __attribute__((packed)) networkPacketNewEntity {
+        struct networkPacket base;
+        uint16_t idx;
+        vec3s position;
+        float rotation;
+};
+
+struct __attribute__((packed)) networkPacketDelEntity {
+        struct networkPacket base;
+        uint16_t idx;
+};
+
+struct __attribute__((packed)) networkPacketEntityChange {
+        uint16_t idx;
+        vec3s position;
+        float rotation;
+};
+
+struct __attribute__((packed)) networkPacketEntityChangesUpdate {
+        struct networkPacket base;
+        uint16_t count;
+        struct networkPacketEntityChange entities[];
 };
 
 void networkController_setup(struct networkController *controller, struct game *game)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_only, 2)))
-        __attribute__((nonnull));
-
-void networkController_unsetup(struct networkController *controller)
-        __attribute__((access (read_write, 1)))
         __attribute__((nonnull));
 
 #endif /* NETWORK_CONTROLLER_H */
