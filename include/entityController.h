@@ -13,9 +13,11 @@ struct networkEntity {
 struct entityController {
         struct game *game;
         struct networkEntity entities[MAX_ENTITIES];
+        struct component *geometry;
+        struct component *material;
 };
 
-void entityController_setup(struct entityController *const controller, struct game *const game)
+void entityController_setup(struct entityController *const controller, struct game *const game, struct component *const playerGeometry, struct component *const playerMaterial)
         __attribute__((access (read_only, 1)))
         __attribute__((access (read_write, 2)))
         __attribute__((nonnull));

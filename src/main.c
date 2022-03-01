@@ -120,8 +120,11 @@ int main(int argc, char *argv[]) {
         networkController_setup(networkController, game, host, port);
 
         // Setup entity controller
+        struct object *player = scene_getObjectFromIdx(scene, camera->parent);
+        struct component *playerGeometry = object_getComponent(player, COMPONENT_GEOMETRY);
+        struct component *playerMaterial = object_getComponent(player, COMPONENT_MATERIAL);
         struct entityController *entityController = smalloc(sizeof(struct entityController));
-        entityController_setup(entityController, game);
+        entityController_setup(entityController, game, playerGeometry, playerMaterial);
 
         // Add a skybox
         scene_setSkybox(scene, "skybox");
