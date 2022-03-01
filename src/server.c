@@ -287,21 +287,19 @@ static void onNewConnection(const ENetEvent *const event) {
         } while (world.entities[world.lowest_free_player_slot].init);
         world.num_players++;
 
-        size_t size = sizeof(struct networkPacketWelcome) + sizeof(struct networkPacketEntityChange) * (world.num_players-1);
+        size_t size = sizeof(struct networkPacketWelcome) + sizeof(struct networkPacketEntityChange) * world.num_players;
         struct networkPacketWelcome *data = malloc(size);
         
         data->base.type = PACKET_TYPE_WELCOME;
         data->id = (uint16_t)idx;
         data->count = 0;
         for (size_t i=0; i<MAX_PLAYERS; i++) {
-                if (i != idx && world.entities[i].init) {
-                        data->currentEntities[data->count].idx = (uint16_t)i;
-                        data->currentEntities[data->count].position = world.entities[i].position;
-                        data->currentEntities[data->count].rotation = world.entities[i].rotation;
-                        data->count++;
-                        if (data->count >= world.num_players-1) {
-                                break;
-                        }
+                data->currentEntities[data->count].idx = (uint16_t)i;
+                data->currentEntities[data->count].position = world.entities[i].position;
+                data->currentEntities[data->count].rotation = world.entities[i].rotation;
+                data->count++;
+                if (data->count >= world.num_players-1) {
+                        break;
                 }
         }
         ENetPacket *packet = enet_packet_create(data, size, ENET_PACKET_FLAG_RELIABLE);
@@ -310,6 +308,8 @@ static void onNewConnection(const ENetEvent *const event) {
         struct networkPacketNewEntity data2;
         data2.base.type = PACKET_TYPE_NEW_ENTITY;
         data2.idx = (uint16_t)idx;
+        data2.position = player->position;
+        data2.rotation = player->rotation;
         ENetPacket *packet2 = enet_packet_create(&data2, sizeof(data2), ENET_PACKET_FLAG_RELIABLE);
         enet_host_broadcast(server, NETWORK_CHANNEL_SERVER_UPDATES, packet2);
 }

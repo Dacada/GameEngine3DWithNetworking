@@ -36,11 +36,20 @@ static void onWelcomePacket(struct networkController *const controller,
         controller->connected = true;
         controller->id = packet->id;
         for (size_t i=0; i<packet->count; i++) {
-                struct eventNetworkEntityNew args;
-                args.idx = packet->currentEntities[i].idx;
-                args.position = packet->currentEntities[i].position;
-                args.rotation = packet->currentEntities[i].rotation;
-                eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
+                size_t idx = packet->currentEntities[i].idx;
+                if (idx == packet->id) {
+                        struct eventPlayerPositionCorrected args;
+                        args.falling = false;
+                        args.jumping = false;
+                        args.position = packet->currentEntities[i].position;
+                        eventBroker_fire((enum eventBrokerEvent)EVENT_SERVER_CORRECTED_PLAYER_POSITION, &args);
+                } else {
+                        struct eventNetworkEntityNew args;
+                        args.idx = idx;
+                        args.position = packet->currentEntities[i].position;
+                        args.rotation = packet->currentEntities[i].rotation;
+                        eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
+                }
         }
 }
 static void onEntityChangesUpdate(struct networkController *const controller,
