@@ -237,6 +237,7 @@ static void onPositionPacket(ENetPeer *const client, struct player *const player
 static void onRotationPacket(struct player *const player,
                              const struct networkPacketRotation *const packet) {
         player->rotation = packet->rotation;
+        changedEntitySet_add(&world.changed_entities, player);
 }
 static void onJumpPacket(ENetPeer *const client, struct player *const player) {
         if (player->jumping || player->falling) {
