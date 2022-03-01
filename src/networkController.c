@@ -228,14 +228,14 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void networkController_setup(struct networkController *controller, struct game *game) {
+void networkController_setup(struct networkController *controller, struct game *game, const char *host, unsigned short port) {
         controller->game = game;
         controller->connected = false;
         
         controller->sentPosPacket = false;
         controller->sentRotPacket = false;
         
-        game_connect(game, NETWORK_CHANNELS_TOTAL, 0, 0, SERVER_HOST, SERVER_PORT, 0);
+        game_connect(game, NETWORK_CHANNELS_TOTAL, 0, 0, host, port, 0);
 
         eventBroker_register(onConnected, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_NETWORK_CONNECTED, controller);

@@ -76,7 +76,14 @@ static void updateTitle(void *registerArgs, void *fireArgs) {
         }
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+        if (argc != 3) {
+                fprintf(stderr, "usage:\n\t%s host port\n", argv[0]);
+                return 1;
+        }
+        const char *const host = argv[1];
+        const unsigned short port = (unsigned short)atoi(argv[2]);
+        
         static const vec4s black = GLMS_VEC4_BLACK_INIT;
 
         // Initialize game
@@ -110,7 +117,7 @@ int main(void) {
 
         // Setup network controller
         struct networkController *networkController = smalloc(sizeof(struct networkController));
-        networkController_setup(networkController, game);
+        networkController_setup(networkController, game, host, port);
 
         // Setup entity controller
         struct entityController *entityController = smalloc(sizeof(struct entityController));

@@ -163,13 +163,13 @@ static void world_deinit(void) {
 ////////////////////////////////////////////////////////////////////////////////
 
 static void networking_deinit(void);
-static void networking_init(void) {
+static void networking_init(unsigned short port) {
         enet_initialize();
         atexit(networking_deinit);
 
         ENetAddress address;
         address.host = ENET_HOST_ANY;
-        address.port = SERVER_PORT;
+        address.port = port;
 
         server = enet_host_create(&address, MAX_PLAYERS, NETWORK_CHANNELS_TOTAL, 0, 0);
         if (server == NULL) {
@@ -447,9 +447,15 @@ static void step_world(void) {
         }
 }
 
-int main(void) {
+int main(int argc, char *argv[]) {
+        if (argc != 2) {
+                fprintf(stderr, "usage:\n\t%s port\n", argv[0]);
+                return 1;
+        }
+        const unsigned short port = (unsigned short)atoi(argv[1]);
+        
         world_init();
-        networking_init();
+        networking_init(port);
 
         printf("Server start.\n");
         for (;;) {
