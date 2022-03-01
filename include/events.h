@@ -5,28 +5,41 @@
 #include <thirty/eventBroker.h>
 
 enum event {
-        EVENT_PLAYER_DIRECTION_CHANGED = EVENT_BROKER_EVENTS_TOTAL,
+        EVENT_PLAYER_POSITION_CHANGED = EVENT_BROKER_EVENTS_TOTAL,
         EVENT_PLAYER_ROTATION_CHANGED,
         EVENT_PLAYER_JUMPED,
-        EVENT_PLAYER_POSITION_CORRECTED,
+        EVENT_SERVER_CORRECTED_PLAYER_POSITION,
+        EVENT_NETWORK_ENTITY_UPDATE,
+        EVENT_NETWORK_ENTITY_NEW,
+        EVENT_NETWORK_ENTITY_DEL,
         EVENT_TOTAL,
 };
 
-struct eventPlayerDirectionChange {
+struct eventPlayerPositionChanged {
         vec3s position;
-        float orientation;
-        vec2s direction;
 };
-struct eventPlayerRotationChange {
-        vec3s position;
-        float orientation;
+struct eventPlayerRotationChanged {
+        float rotation;
 };
 struct eventPlayerJumped {
-        vec3s position;
-        float orientation;
 };
 struct eventPlayerPositionCorrected {
         vec3s position;
+        bool jumping;
+        bool falling;
+};
+struct eventNetworkEntityUpdate {
+        size_t idx;
+        vec3s position;
+        float rotation;
+};
+struct eventNetworkEntityNew {
+        size_t idx;
+        vec3s position;
+        float rotation;
+};
+struct eventNetworkEntityDel {
+        size_t idx;
 };
 
 #endif
