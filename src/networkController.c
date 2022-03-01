@@ -35,6 +35,13 @@ static void onWelcomePacket(struct networkController *const controller,
                             const struct networkPacketWelcome *const packet) {
         controller->connected = true;
         controller->id = packet->id;
+        for (size_t i=0; i<packet->count; i++) {
+                struct eventNetworkEntityNew args;
+                args.idx = packet->currentEntities[i].idx;
+                args.position = packet->currentEntities[i].position;
+                args.rotation = packet->currentEntities[i].rotation;
+                eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
+        }
 }
 static void onEntityChangesUpdate(struct networkController *const controller,
                                   const struct networkPacketEntityChangesUpdate *const packet) {

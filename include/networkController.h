@@ -43,9 +43,17 @@ struct __attribute__((packed)) networkPacket {
         uint8_t type;
 };
 
+struct __attribute__((packed)) networkPacketEntityChange {
+        uint16_t idx;
+        vec3s position;
+        float rotation;
+};
+
 struct __attribute__((packed)) networkPacketWelcome {
         struct networkPacket base;
         uint16_t id;
+        uint16_t count;
+        struct networkPacketEntityChange currentEntities[];
 };
 
 struct __attribute__((packed)) networkPacketPositionCorrection {
@@ -78,12 +86,6 @@ struct __attribute__((packed)) networkPacketNewEntity {
 struct __attribute__((packed)) networkPacketDelEntity {
         struct networkPacket base;
         uint16_t idx;
-};
-
-struct __attribute__((packed)) networkPacketEntityChange {
-        uint16_t idx;
-        vec3s position;
-        float rotation;
 };
 
 struct __attribute__((packed)) networkPacketEntityChangesUpdate {

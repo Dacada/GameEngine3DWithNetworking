@@ -290,6 +290,18 @@ static void onNewConnection(const ENetEvent *const event) {
         struct networkPacketWelcome data;
         data.base.type = PACKET_TYPE_WELCOME;
         data.id = (uint16_t)idx;
+        data.count = 0;
+        for (size_t i=0; i<MAX_PLAYERS; i++) {
+                if (i != idx && world.entities[i].init) {
+                        data.currentEntities[data.count].idx = (uint16_t)i;
+                        data.currentEntities[data.count].position = world.entities[i].position;
+                        data.currentEntities[data.count].rotation = world.entities[i].rotation;
+                        data.count++;
+                        if (data.count >= world.num_players-1) {
+                                break;
+                        }
+                }
+        }
         ENetPacket *packet = enet_packet_create(&data, sizeof(data), ENET_PACKET_FLAG_RELIABLE);
         enet_peer_send(event->peer, NETWORK_CHANNEL_CONTROL, packet);
 
