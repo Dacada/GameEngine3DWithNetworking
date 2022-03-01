@@ -9,7 +9,7 @@ ASSETS_DIR := assets
 SOURCES := $(wildcard $(SRC_DIR)/*.c)
 SOURCES_SERVER := $(SRC_DIR)/server.c
 SOURCES := $(filter-out $(SOURCES_SERVER),$(SOURCES))
-SOURCES_SERVER := $(SOURCES_SERVER) $(SRC_DIR)/curve.c
+SOURCES_SERVER := $(SOURCES_SERVER) $(SRC_DIR)/curve.c $(SRC_DIR)/timeutil.c $(SRC_DIR)/entityUtils.c
 
 OBJECTS_DEBUG := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_dbg.o,$(SOURCES))
 OBJECTS_RELEASE := $(patsubst $(SRC_DIR)/%.c,$(OBJ_DIR)/%_rel.o,$(SOURCES))
