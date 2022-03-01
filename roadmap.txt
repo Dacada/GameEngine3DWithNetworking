@@ -1,0 +1,7 @@
+[-] Get basic multiplayer working
+    [X] Players can see each other move
+    [ ] Add client interpolation and extrapolation
+[ ] Replace UI with https://github.com/Immediate-Mode-UI/Nuklear
+[ ] Add a nice ingame dialog to choose server and port
+[ ] Create a better test level in blender
+[ ] Port to Windows
