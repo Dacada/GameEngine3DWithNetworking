@@ -1,5 +1,6 @@
 [X] Players can see each other move
-[ ] Add client interpolation and extrapolation
+[X] Add client interpolation
+[ ] Fix up networking bugs
 [ ] Replace UI with https://github.com/Immediate-Mode-UI/Nuklear
 [ ] Add FPS and Ping to UI
 [ ] Add a nice ingame dialog to choose server and port
