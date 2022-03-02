@@ -20,7 +20,6 @@ static size_t createEntity(struct game *const game, struct component *const geom
 }
 
 static void onNetworkEntityNew(void *registerArgs, void *fireArgs) {
-        fprintf(stderr, "new\n");
         struct entityController *controller = registerArgs;
         struct eventNetworkEntityNew *args = fireArgs;
 
@@ -49,7 +48,6 @@ static void onNetworkEntityNew(void *registerArgs, void *fireArgs) {
 }
 
 static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
-        fprintf(stderr, "del\n");
         struct entityController *controller = registerArgs;
         struct eventNetworkEntityDel *args = fireArgs;
 
@@ -67,7 +65,6 @@ static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
 }
 
 static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
-        fprintf(stderr, "update\n");
         struct entityController *controller = registerArgs;
         struct eventNetworkEntityUpdate *args = fireArgs;
 
@@ -89,7 +86,17 @@ static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
 
         entity->prevPos = glms_vec3(t);
         entity->prevRot = rr.z;
+        entity->nextPos = args->position;
+        entity->nextRot = args->rotation;
         entity->lastUpdate = monotonic();
+}
+
+// angle lerp adapted from https://gist.github.com/shaunlebron/8832585
+static float lerp_angle(float from, float to, float t) {
+        float max = 2*GLM_PIf;
+        float da = fmodf(to-from, max);
+        float short_angle_dist = fmodf(2*da, max) - da;
+        return from + short_angle_dist*t;
 }
 
 static void onUpdate(void *registerArgs, void *fireArgs) {
@@ -105,16 +112,24 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                 if (entity->init) {
                         unsigned long elapsed_ns = monotonic_difference(now, entity->lastUpdate);
                         float t = (float)elapsed_ns/(float)TICK_PERIOD_NS;
-                        if (t > 1 || t < 0) {
+                        if (t > 2 || t < 0) {
                                 continue;
                         }
+                        fprintf(stderr, "update\n");
                         
                         vec3s currPos;
                         float currRot;
-                        currPos.x = glm_lerp(entity->prevPos.x, entity->nextPos.x, t);
-                        currPos.y = glm_lerp(entity->prevPos.y, entity->nextPos.y, t);
-                        currPos.z = glm_lerp(entity->prevPos.z, entity->nextPos.z, t);
-                        currRot = glm_lerp(entity->prevRot, entity->nextRot, t);
+                        if (t <= 1) {
+                                fprintf(stderr, "a\n");
+                                currPos.x = glm_lerp(entity->prevPos.x, entity->nextPos.x, t);
+                                currPos.y = glm_lerp(entity->prevPos.y, entity->nextPos.y, t);
+                                currPos.z = glm_lerp(entity->prevPos.z, entity->nextPos.z, t);
+                                currRot = lerp_angle(entity->prevRot, entity->nextRot, t);
+                        } else {
+                                fprintf(stderr, "b\n");
+                                currPos = entity->nextPos;
+                                currRot = entity->nextRot;
+                        }
                         
                         struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
                         struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);

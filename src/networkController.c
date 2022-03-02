@@ -66,7 +66,6 @@ static void onEntityChangesUpdate(struct networkController *const controller,
                 if (entity->idx == controller->id) {
                         continue;
                 }
-                fprintf(stderr, "onEntityChangesUpdate %u\n", entity->idx);
                 struct eventNetworkEntityUpdate args;
                 args.idx = entity->idx;
                 args.position = entity->position;
@@ -80,7 +79,6 @@ static void onEntityNew(struct networkController *const controller,
         if (packet->idx == controller->id) {
                 return;
         }
-        fprintf(stderr, "onEntityNew %u\n", packet->idx);
 
         struct eventNetworkEntityNew args;
         args.idx = packet->idx;
@@ -94,7 +92,6 @@ static void onEntityDel(struct networkController *const controller,
         if (packet->idx == controller->id) {
                 return;
         }
-        fprintf(stderr, "onEntityDel %u\n", packet->idx);
         
         struct eventNetworkEntityDel args;
         args.idx = packet->idx;
