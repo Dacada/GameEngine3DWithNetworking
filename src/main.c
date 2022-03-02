@@ -83,13 +83,11 @@ int main(int argc, char *argv[]) {
         }
         const char *const host = argv[1];
         const unsigned short port = (unsigned short)atoi(argv[2]);
-        
-        static const vec4s black = GLMS_VEC4_BLACK_INIT;
 
         // Initialize game
         struct game *game = smalloc(sizeof(struct game));
         game_init(game, SCREEN_WIDTH, SCREEN_HEIGHT,
-                  EVENT_TOTAL-EVENT_BROKER_EVENTS_TOTAL, 1, 1);
+                  EVENT_TOTAL-EVENT_BROKER_EVENTS_TOTAL, 1);
 
         // Read scene from file
         struct scene *scene = game_createScene(game);
@@ -97,23 +95,11 @@ int main(int argc, char *argv[]) {
         scene_initFromFile(scene, game, f);
         game_setCurrentScene(game, scene->idx);
 
-        // Create UI
-        struct ui *ui = game_createUi(game);
-        ui_init(ui, SCREEN_WIDTH, SCREEN_HEIGHT);
-        ui_addQuad(ui, 10,10, 200,60, 0.0F, "ui_test_texture");
-        struct font *font = ui_getFont("CutiveMono-Regular", 24, "latin-1");
-        font_load(font);
-        ui_addText(ui, 35,45, 0.1F, (const unsigned char*)"Something.", font, black);
-        game_setCurrentUi(game, ui->idx);
-
-        // Create cursor (player controller will set dimensions correctly)
-        size_t cursor_idx = ui_addQuad(ui, 0, 0, 1, 1, 0.0F, "cursor");
-
         // Setup player controller
         struct playerController *playerController = smalloc(sizeof(struct playerController));
         size_t camera_idx = scene_idxByName(scene, "Camera");
         struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
-        playerController_setup(playerController, camera, (vec2s){.x=12, .y=17}, cursor_idx);
+        playerController_setup(playerController, camera);
 
         // Setup network controller
         struct networkController *networkController = smalloc(sizeof(struct networkController));

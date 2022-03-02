@@ -17,14 +17,14 @@ static const float movement_vector_zero = 1e-9f;
 static const float spin_speed = 2.0F;
 
 static inline void update_cursor_position(struct playerController *controller) {
-        ui_setQuadPosition(game_getCurrentUi(controller->game), controller->cursor_idx,
-                           controller->cursor_position.x, controller->cursor_position.y,
-                           controller->cursor_position.x+controller->cursor_dimensions.x,
-                           controller->cursor_position.y+controller->cursor_dimensions.y, 1.0F);
+        (void)controller;
+        // this function sets the graphical visual quad that is the cursor's position, might not be necessary
 }
 
 static inline void update_cursor_visibility(struct playerController *controller, bool visible) {
-        ui_setQuadVisibility(game_getCurrentUi(controller->game), controller->cursor_idx, visible);
+        (void)controller;
+        (void)visible;
+        // this function sets the graphical visual quad that is the cursor's visibility, might not be necessary
 }
 
 static inline mat4s getCameraModel(struct sphericalCoord coord) {
@@ -41,10 +41,12 @@ static inline mat4s getCameraModel(struct sphericalCoord coord) {
 
 static inline void onMousePositionCursor(struct playerController *controller,
                               struct eventBrokerMousePosition *args) {
-        struct ui *ui = game_getCurrentUi(controller->game);
+        int width, height;
+        glfwGetWindowSize(controller->game->window, &width, &height);
+        
         vec2s cursor_position = {
-                .x = glm_clamp((float)args->xpos, 0, (float)ui->width),
-                .y = glm_clamp((float)args->ypos, 0, (float)ui->height),
+                .x = glm_clamp((float)args->xpos, 0, (float)width),
+                .y = glm_clamp((float)args->ypos, 0, (float)height),
         };
         game_setCursorPosition(controller->game, cursor_position);
         controller->cursor_position = cursor_position;
@@ -475,22 +477,20 @@ static void onPositionCorrection(void *registerArgs, void *fireArgs) {
 }
 
 
-void playerController_setup(struct playerController *controller, const struct object *const camera, vec2s cursor_dimensions, size_t cursor_idx) {
+void playerController_setup(struct playerController *controller, const struct object *const camera) {
         controller->game = camera->game;
         
         controller->camera_idx = camera->idx;
         controller->playerCharacter_idx = camera->parent;
-        controller->cursor_idx = cursor_idx;
 
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
         controller->pc_rotation = 0;
         controller->camera_needs_update = false;
         
-        controller->cursor_dimensions = cursor_dimensions;
-        
-        struct ui *ui = game_getCurrentUi(controller->game);
-        controller->cursor_position.x = (float)ui->width/2;
-        controller->cursor_position.y = (float)ui->height/2;
+        int width, height;
+        glfwGetWindowSize(controller->game->window, &width, &height);
+        controller->cursor_position.x = (float)width/2;
+        controller->cursor_position.y = (float)height/2;
 
         controller->camera_position.distance = camera_distance_default;
         controller->camera_position.yaw = camera_pos_yaw_behind;

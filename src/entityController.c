@@ -13,7 +13,6 @@ static size_t createEntity(struct game *const game, struct component *const geom
         struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);
         transform_reset(transform);
         transform_translate(transform, position);
-        fprintf(stderr, "spawn new entity at %f,%f,%f\n", transform->model.col[3].x, transform->model.col[3].y, transform->model.col[3].z);
         transform_rotateZ(transform, rotation);
 
         return object->idx;

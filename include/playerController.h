@@ -17,9 +17,7 @@ struct playerController {
         
         size_t camera_idx;
         size_t playerCharacter_idx;
-        size_t cursor_idx;
-
-        vec2s cursor_dimensions;
+        
         vec2s cursor_position;
 
         vec2s pc_movement_direction;
@@ -60,7 +58,7 @@ struct playerController {
         } camera_mode;
 };
 
-void playerController_setup(struct playerController *controller, const struct object *const camera, vec2s cursorDimensions, size_t cursor_idx)
+void playerController_setup(struct playerController *controller, const struct object *const camera)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_only, 2)))
         __attribute__((nonnull));
