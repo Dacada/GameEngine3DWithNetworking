@@ -1,3 +1,4 @@
+#include <nuklear/defs.h>
 #include <playerController.h>
 #include <entityUtils.h>
 #include <events.h>
@@ -16,15 +17,12 @@ static const float camera_pos_pitch_initial = 1.25f;
 static const float movement_vector_zero = 1e-9f;
 static const float spin_speed = 2.0F;
 
-static inline void update_cursor_position(struct playerController *controller) {
-        (void)controller;
-        // this function sets the graphical visual quad that is the cursor's position, might not be necessary
-}
-
 static inline void update_cursor_visibility(struct playerController *controller, bool visible) {
-        (void)controller;
-        (void)visible;
-        // this function sets the graphical visual quad that is the cursor's visibility, might not be necessary
+        if (visible) {
+                nk_style_show_cursor(controller->game->uiData.ctx);
+        } else {
+                nk_style_hide_cursor(controller->game->uiData.ctx);
+        }
 }
 
 static inline mat4s getCameraModel(struct sphericalCoord coord) {
@@ -50,8 +48,6 @@ static inline void onMousePositionCursor(struct playerController *controller,
         };
         game_setCursorPosition(controller->game, cursor_position);
         controller->cursor_position = cursor_position;
-
-        update_cursor_position(controller);
 }
 
 static inline void onMousePositionCamera(struct playerController *controller,
@@ -237,6 +233,10 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseButton *args = fireArgs;
 
+        if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
+                return;
+        }
+
         if (args->action == GLFW_PRESS) {
                 if (args->button == GLFW_MOUSE_BUTTON_LEFT) {
                         switch (controller->camera_mode) {
@@ -346,12 +346,21 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
 static void onMouseScroll(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseScroll *args = fireArgs;
+
+        if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
+                return;
+        }
+        
         controller->camera_distance_goal = glm_clamp(controller->camera_distance_goal - (float)args->amount, camera_distance_min, camera_distance_max);
 }
 
 static void onMousePoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
+        
+        if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
+                return;
+        }
 
         if (game_mouseButtonPressed(controller->game, GLFW_MOUSE_BUTTON_LEFT) &&
             game_mouseButtonPressed(controller->game, GLFW_MOUSE_BUTTON_RIGHT)) {
@@ -517,7 +526,6 @@ void playerController_setup(struct playerController *controller, const struct ob
         eventBroker_register(onKeyboardPoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
         eventBroker_register(onPositionCorrection, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_SERVER_CORRECTED_PLAYER_POSITION, controller);
 
-        update_cursor_position(controller);
         update_cursor_visibility(controller, true);
 
         struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);

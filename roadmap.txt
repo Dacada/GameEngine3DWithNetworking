@@ -1,7 +1,7 @@
 [X] Players can see each other move
 [X] Add client interpolation
 [X] Replace UI with https://github.com/Immediate-Mode-UI/Nuklear
-[ ] Figure out how to deal with conflicts between playerController and UI 
+[X] Figure out how to deal with conflicts between playerController and UI 
 [ ] Add FPS and Ping to UI
 [ ] Add a nice ingame dialog to choose server and port
 [ ] Create a better test level in blender
