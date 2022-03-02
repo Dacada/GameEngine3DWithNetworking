@@ -115,18 +115,15 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                         if (t > 2 || t < 0) {
                                 continue;
                         }
-                        fprintf(stderr, "update\n");
                         
                         vec3s currPos;
                         float currRot;
                         if (t <= 1) {
-                                fprintf(stderr, "a\n");
                                 currPos.x = glm_lerp(entity->prevPos.x, entity->nextPos.x, t);
                                 currPos.y = glm_lerp(entity->prevPos.y, entity->nextPos.y, t);
                                 currPos.z = glm_lerp(entity->prevPos.z, entity->nextPos.z, t);
                                 currRot = lerp_angle(entity->prevRot, entity->nextRot, t);
                         } else {
-                                fprintf(stderr, "b\n");
                                 currPos = entity->nextPos;
                                 currRot = entity->nextRot;
                         }
