@@ -6,7 +6,6 @@
 #include <cglm/struct.h>
 #include <errno.h>
 
-#define TICK_PERIOD_NS 100000000L
 #define TICK_PERIOD 0.1f
 #define MAX_PLAYERS 512
 

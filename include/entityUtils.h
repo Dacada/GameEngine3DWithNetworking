@@ -7,6 +7,7 @@
 #define PLAYER_SPEED 10.0f
 #define JUMP_HEIGHT 5.0f
 #define JUMP_TIME 0.5f
+#define TICK_PERIOD_NS 100000000L
 
 // Utility function to clamp an angle between -2*pi and 2*pi radians.
 float normalize_yaw(float angle);

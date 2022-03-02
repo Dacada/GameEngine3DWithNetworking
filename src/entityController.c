@@ -1,4 +1,5 @@
 #include <entityController.h>
+#include <entityUtils.h>
 #include <curve.h>
 #include <events.h>
 
@@ -33,7 +34,18 @@ static void onNetworkEntityNew(void *registerArgs, void *fireArgs) {
         snprintf(name, 256, "networkEntity%lu", args->idx);
         
         entity->localIdx = createEntity(controller->game, controller->geometry, controller->material, name, args->position, args->rotation);
+
+        entity->prevPos = args->position;
+        entity->nextPos = args->position;
+        
+        entity->prevRot = args->rotation;
+        entity->nextRot = args->rotation;
+
+        entity->lastUpdate = monotonic();
+        
         entity->init = true;
+
+        controller->numEntities++;
 }
 
 static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
@@ -51,6 +63,7 @@ static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
         struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
         scene_removeObject(scene, object);
         entity->init = false;
+        controller->numEntities--;
 }
 
 static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
@@ -67,13 +80,59 @@ static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
         struct scene *scene = game_getCurrentScene(controller->game);
         struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
         struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);
-        transform_reset(transform);
-        transform_translate(transform, args->position);
-        transform_rotateZ(transform, args->rotation);
+
+        vec4s t;
+        mat4s r;
+        vec3s s;
+        glms_decompose(transform->model, &t, &r, &s);
+        vec3s rr = glms_euler_angles(r);
+
+        entity->prevPos = glms_vec3(t);
+        entity->prevRot = rr.z;
+        entity->lastUpdate = monotonic();
+}
+
+static void onUpdate(void *registerArgs, void *fireArgs) {
+        struct entityController *controller = registerArgs;
+        (void)fireArgs;
+
+        struct scene *scene = game_getCurrentScene(controller->game);
+        struct timespec now = monotonic();
+
+        size_t count = 0;
+        for (size_t i=0; i<MAX_ENTITIES; i++) {
+                struct networkEntity *entity = &controller->entities[i];
+                if (entity->init) {
+                        unsigned long elapsed_ns = monotonic_difference(now, entity->lastUpdate);
+                        float t = (float)elapsed_ns/(float)TICK_PERIOD_NS;
+                        if (t > 1 || t < 0) {
+                                continue;
+                        }
+                        
+                        vec3s currPos;
+                        float currRot;
+                        currPos.x = glm_lerp(entity->prevPos.x, entity->nextPos.x, t);
+                        currPos.y = glm_lerp(entity->prevPos.y, entity->nextPos.y, t);
+                        currPos.z = glm_lerp(entity->prevPos.z, entity->nextPos.z, t);
+                        currRot = glm_lerp(entity->prevRot, entity->nextRot, t);
+                        
+                        struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
+                        struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);
+                        transform_reset(transform);
+                        transform_translate(transform, currPos);
+                        transform_rotateZ(transform, currRot);
+
+                        count++;
+                        if (count >= controller->numEntities) {
+                                break;
+                        }
+                }
+        }
 }
 
 void entityController_setup(struct entityController *const controller, struct game *const game, struct component *const playerGeometry, struct component *const playerMaterial) {
         controller->game = game;
+        controller->numEntities = 0;
         controller->geometry = playerGeometry;
         controller->material = playerMaterial;
 
@@ -84,4 +143,6 @@ void entityController_setup(struct entityController *const controller, struct ga
         eventBroker_register(onNetworkEntityNew, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, controller);
         eventBroker_register(onNetworkEntityDel, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_DEL, controller);
         eventBroker_register(onNetworkEntityUpdate, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_UPDATE, controller);
+
+        eventBroker_register(onUpdate, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_UPDATE, controller);
 }
