@@ -33,8 +33,6 @@ static void onPositionCorrectionPacket(struct networkController *const controlle
 }
 static void onWelcomePacket(struct networkController *const controller,
                             const struct networkPacketWelcome *const packet) {
-        game_setCurrentScene(controller->game, controller->testMapSceneIdx);
-        
         controller->connected = true;
         controller->id = packet->id;
         for (size_t i=0; i<packet->count; i++) {
@@ -53,6 +51,8 @@ static void onWelcomePacket(struct networkController *const controller,
                         eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
                 }
         }
+
+        eventBroker_fire((enum eventBrokerEvent)EVENT_SERVER_CONNECTION_SUCCESS, NULL);
 }
 static void onEntityChangesUpdate(struct networkController *const controller,
                                   const struct networkPacketEntityChangesUpdate *const packet) {
@@ -152,22 +152,6 @@ static void onServerUpdatePacket(struct networkController *const controller,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static void onConnected(void *registerArgs, void *fireArgs) {
-        struct networkController *controller = registerArgs;
-        ENetEvent *event = ((ENetEvent*)fireArgs);
-
-        (void)event;
-        (void)controller;
-        fprintf(stderr, "connected to server\n");
-}
-static void onDisconnected(void *registerArgs, void *fireArgs) {
-        struct networkController *controller = registerArgs;
-        ENetEvent *event = ((ENetEvent*)fireArgs);
-
-        (void)controller;
-        (void)event;
-        fprintf(stderr, "disconnected from server\n");
-}
 static void onReceived(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         ENetEvent *event = ((ENetEvent*)fireArgs);
@@ -263,21 +247,16 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void networkController_setup(struct networkController *controller, struct game *game, const char *host, unsigned short port, size_t testMapSceneIdx) {
+void networkController_setup(struct networkController *controller, struct game *game, size_t testMapSceneIdx) {
         controller->game = game;
         controller->connected = false;
         
         controller->sentPosPacket = false;
         controller->sentRotPacket = false;
 
+        // TODO: Have an own controller to handle scene changes
         controller->testMapSceneIdx = testMapSceneIdx;
-        
-        game_connect(game, NETWORK_CHANNELS_TOTAL, 0, 0, host, port, 0);
 
-        eventBroker_register(onConnected, EVENT_BROKER_PRIORITY_HIGH,
-                             EVENT_BROKER_NETWORK_CONNECTED, controller);
-        eventBroker_register(onDisconnected, EVENT_BROKER_PRIORITY_HIGH,
-                             EVENT_BROKER_NETWORK_DISCONNECTED, controller);
         eventBroker_register(onReceived, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_NETWORK_RECV, controller);
 
@@ -287,4 +266,8 @@ void networkController_setup(struct networkController *controller, struct game *
                              (enum eventBrokerEvent)EVENT_PLAYER_POSITION_CHANGED, controller);
         eventBroker_register(onPlayerRotationChanged, EVENT_BROKER_PRIORITY_HIGH,
                              (enum eventBrokerEvent)EVENT_PLAYER_ROTATION_CHANGED, controller);
+}
+
+void networkController_connect(const struct networkController *controller, const char *host, unsigned short port) {
+        game_connect(controller->game, NETWORK_CHANNELS_TOTAL, 0, 0, host, port, 0);
 }

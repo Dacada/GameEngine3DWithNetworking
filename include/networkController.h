@@ -95,10 +95,14 @@ struct __attribute__((packed)) networkPacketEntityChangesUpdate {
         struct networkPacketEntityChange entities[];
 };
 
-void networkController_setup(struct networkController *controller, struct game *game, const char *host, unsigned short port, size_t testMapSceneIdx)
+void networkController_setup(struct networkController *controller, struct game *game, size_t testMapSceneIdx)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_write, 2)))
-        __attribute__((access (read_only, 3)))
+        __attribute__((nonnull));
+
+void networkController_connect(const struct networkController *controller, const char *host, unsigned short port)
+        __attribute__((access (read_only, 1)))
+        __attribute__((access (read_only, 2)))
         __attribute__((nonnull));
 
 #endif /* NETWORK_CONTROLLER_H */

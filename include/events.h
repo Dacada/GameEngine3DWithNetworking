@@ -8,6 +8,7 @@ enum event {
         EVENT_PLAYER_POSITION_CHANGED = EVENT_BROKER_EVENTS_TOTAL,
         EVENT_PLAYER_ROTATION_CHANGED,
         EVENT_PLAYER_JUMPED,
+        EVENT_SERVER_CONNECTION_SUCCESS,
         EVENT_SERVER_CORRECTED_PLAYER_POSITION,
         EVENT_NETWORK_ENTITY_UPDATE,
         EVENT_NETWORK_ENTITY_NEW,
@@ -22,6 +23,8 @@ struct eventPlayerRotationChanged {
         float rotation;
 };
 struct eventPlayerJumped {
+};
+struct eventServerConnectionSuccess {
 };
 struct eventPlayerPositionCorrected {
         vec3s position;

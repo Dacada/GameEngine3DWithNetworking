@@ -5,8 +5,11 @@
 
 #define _POSIX_C_SOURCE 200112L
 
+
 #include <playerController.h>
 #include <networkController.h>
+#include <sceneController.h>
+#include <uiController.h>
 #include <events.h>
 #include <thirty/game.h>
 #include <thirty/util.h>
@@ -17,7 +20,6 @@
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 #define TITLE_BUFFER_SIZE 256
-#define FRAME_PERIOD_FPS_REFRESH 10
 
 static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         static bool playingQ = false;
@@ -26,15 +28,16 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         struct game *game = registerArgs;
         struct eventBrokerKeyboardEvent *args = fireArgs;
         
+        if (game_inMainMenu(game)) {
+                return;
+        }
+        
         const int key = args->key;
         const int action = args->action;
         //const int modifiers = args->modifiers;
                         
         if (action == GLFW_PRESS) {
-                if (key == GLFW_KEY_ESCAPE) {
-                        game_disconnect(game, 0);
-                        game_shouldStop(game);
-                } else if (key == GLFW_KEY_E || key == GLFW_KEY_Q) {
+                if (key == GLFW_KEY_E || key == GLFW_KEY_Q) {
                         struct scene *scene = game_getCurrentScene(game);
                         size_t idx = scene_idxByName(scene, "SnekSkin");
                         struct object *object = scene_getObjectFromIdx(scene, idx);
@@ -60,60 +63,8 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         }
 }
 
-static void updateUIFPSPingWidget(struct game *game, struct nk_context *ctx) {
-        static unsigned fps;
-        {
-                static float deltas = 0;
-                static unsigned count = 0;
-                deltas += ctx->delta_time_seconds;
-
-                count++;
-                if (count >= FRAME_PERIOD_FPS_REFRESH) {
-                        float avgDelta = deltas/FRAME_PERIOD_FPS_REFRESH;
-                        fps = (unsigned)(1/avgDelta);
-                        
-                        deltas = 0;
-                        count = 0;
-                }
-        }
-        char fpsText[256];
-        snprintf(fpsText, 256, "fps: %u", fps);
-
-        char pingText[256];
-        if (game->server != NULL) {
-                snprintf(pingText, 256, "ping: %u", game->server->roundTripTime);
-        } else {
-                snprintf(pingText, 256, "ping: n/a");
-        }
-
-        if (nk_begin(ctx, "status", nk_rect(0, 0, 100, 30), NK_WINDOW_NO_SCROLLBAR | NK_WINDOW_BACKGROUND | NK_WINDOW_NO_INPUT)) {
-                nk_layout_row_static(ctx, 10, 100, 1);
-                nk_label(ctx, fpsText, NK_TEXT_LEFT);
-                nk_label(ctx, pingText, NK_TEXT_LEFT);
-        }
-        nk_end(ctx);
-}
-
-static void updateUI(void *registerArgs, void *fireArgs) {
-        struct game *game = registerArgs;
-        struct eventBrokerUpdateUI *args = fireArgs;
-        struct nk_context *ctx = args->ctx;
-
-        if (!game_inMainMenu(game)) {
-                updateUIFPSPingWidget(game, ctx);
-        }
-}
-
-int main(int argc, char *argv[]) {
+int main(void) {
         const vec4s white = GLMS_VEC4_ONE_INIT;
-        (void)white;
-        
-        if (argc != 3) {
-                fprintf(stderr, "usage:\n\t%s host port\n", argv[0]);
-                return 1;
-        }
-        const char *const host = argv[1];
-        const unsigned short port = (unsigned short)atoi(argv[2]);
 
         // Initialize game
         struct game *game = smalloc(sizeof(struct game));
@@ -141,6 +92,7 @@ int main(int argc, char *argv[]) {
                 struct scene *scene = game_createScene(game);
                 FILE *f = fopen("scenes/scene.bgl", "r");
                 scene_initFromFile(scene, game, f);
+                scene_setSkybox(scene, "skybox");
                 sceneIdx = scene->idx;
         }
         
@@ -160,7 +112,7 @@ int main(int argc, char *argv[]) {
         struct networkController *networkController = smalloc(sizeof(struct networkController));
         {
                 struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
-                networkController_setup(networkController, game, host, port, scene->idx);
+                networkController_setup(networkController, game, scene->idx);
         }
 
         // Setup entity controller
@@ -174,16 +126,17 @@ int main(int argc, char *argv[]) {
                 entityController_setup(entityController, game, playerGeometry, playerMaterial);
         }
 
-        // Add a skybox
-        {
-                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
-                scene_setSkybox(scene, "skybox");
-        }
+        // Setup scene controller
+        struct sceneController *sceneController = smalloc(sizeof(struct sceneController));
+        sceneController_setup(sceneController, game, sceneIdx);
+
+        // Setup ui controller
+        struct uiController *uiController = smalloc(sizeof(struct uiController));
+        uiController_setup(uiController, game, networkController);
 
         // Register events
         eventBroker_register(processKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_KEYBOARD_EVENT, game);
-        eventBroker_register(updateUI, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_UPDATE_UI, game);
 
         // Main loop
         game_run(game);
@@ -193,6 +146,8 @@ int main(int argc, char *argv[]) {
         free(playerController);
         free(networkController);
         free(entityController);
+        free(sceneController);
+        free(uiController);
         free(game);
         
         return EXIT_SUCCESS;
