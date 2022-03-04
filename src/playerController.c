@@ -138,6 +138,10 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerUpdate *args = fireArgs;
 
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
         struct scene *scene = game_getCurrentScene(controller->game);
         struct transform *pc_trans = object_getComponent(scene_getObjectFromIdx(scene, controller->playerCharacter_idx), COMPONENT_TRANSFORM);
 
@@ -214,6 +218,10 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
 static void onMousePosition(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMousePosition *args = fireArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
                 
         switch (controller->camera_mode) {
         case CAMERA_MODE_CURSOR:
@@ -232,6 +240,10 @@ static void onMousePosition(void *registerArgs, void *fireArgs) {
 static void onMouseButton(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseButton *args = fireArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
 
         if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
                 return;
@@ -347,6 +359,10 @@ static void onMouseScroll(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseScroll *args = fireArgs;
 
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
         if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
                 return;
         }
@@ -357,6 +373,10 @@ static void onMouseScroll(void *registerArgs, void *fireArgs) {
 static void onMousePoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
         
         if (nk_window_is_any_hovered(controller->game->uiData.ctx)) {
                 return;
@@ -372,6 +392,10 @@ static void onMousePoll(void *registerArgs, void *fireArgs) {
 static void onKeyboardPoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
 
         bool pc_left = game_keyPressed(controller->game, GLFW_KEY_A);
         bool pc_right = game_keyPressed(controller->game, GLFW_KEY_D);
@@ -448,6 +472,10 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
         const int key = args->key;
         const int action = args->action;
 
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
         if (action == GLFW_PRESS) {
                 if (key == GLFW_KEY_SPACE) {
                         if (!controller->pc_jumping && !controller->pc_falling) {
@@ -465,6 +493,10 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
 static void onPositionCorrection(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventPlayerPositionCorrected *args = fireArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
         
         struct scene *scene = game_getCurrentScene(controller->game);
         struct object *player = scene_getObjectFromIdx(scene, controller->playerCharacter_idx);
@@ -485,12 +517,28 @@ static void onPositionCorrection(void *registerArgs, void *fireArgs) {
 #endif
 }
 
+static void onSceneChange(void *registerArgs, void *fireArgs) {
+        struct playerController *controller = registerArgs;
+        struct eventBrokerSceneChanged *args = fireArgs;
+        (void)args;
 
-void playerController_setup(struct playerController *controller, const struct object *const camera) {
-        controller->game = camera->game;
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
+        update_cursor_visibility(controller, true);
+        struct scene *scene = game_getCurrentScene(controller->game);
+        struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
+        struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
+        camera_trans->model = getCameraModel(controller->camera_position);
+}
+
+
+void playerController_setup(struct playerController *controller, struct game *const game, const size_t cameraIdx, const size_t playerIdx) {
+        controller->game = game;
         
-        controller->camera_idx = camera->idx;
-        controller->playerCharacter_idx = camera->parent;
+        controller->camera_idx = cameraIdx;
+        controller->playerCharacter_idx = playerIdx;
 
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
         controller->pc_rotation = 0;
@@ -525,9 +573,7 @@ void playerController_setup(struct playerController *controller, const struct ob
         eventBroker_register(onMousePoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
         eventBroker_register(onKeyboardPoll, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_MOUSE_POLL, controller);
         eventBroker_register(onPositionCorrection, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_SERVER_CORRECTED_PLAYER_POSITION, controller);
+        eventBroker_register(onSceneChange, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_SCENE_CHANGED, controller);
 
-        update_cursor_visibility(controller, true);
-
-        struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
-        camera_trans->model = getCameraModel(controller->camera_position);
+        onSceneChange(controller, NULL);
 }

@@ -33,6 +33,8 @@ static void onPositionCorrectionPacket(struct networkController *const controlle
 }
 static void onWelcomePacket(struct networkController *const controller,
                             const struct networkPacketWelcome *const packet) {
+        game_setCurrentScene(controller->game, controller->testMapSceneIdx);
+        
         controller->connected = true;
         controller->id = packet->id;
         for (size_t i=0; i<packet->count; i++) {
@@ -113,6 +115,10 @@ static void onControlPacket(struct networkController *const controller,
 }
 static void onMovementPacket(struct networkController *const controller,
                              const struct networkPacket *const packet) {
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+        
         switch (packet->type) {
         case PACKET_TYPE_POSITION_CORRECTION:
                 onPositionCorrectionPacket(controller, (const void*)packet);
@@ -124,6 +130,10 @@ static void onMovementPacket(struct networkController *const controller,
 }
 static void onServerUpdatePacket(struct networkController *const controller,
                                  const struct networkPacket *const packet) {
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+        
         switch (packet->type) {
         case PACKET_TYPE_ENTITY_CHANGES_UPDATE:
                 onEntityChangesUpdate(controller, (const void*)packet);
@@ -187,6 +197,10 @@ static void onPlayerJumped(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerJumped *jumped = fireArgs;
 
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
         if (!controller->connected) {
                 return;
         }
@@ -201,6 +215,10 @@ static void onPlayerJumped(void *registerArgs, void *fireArgs) {
 static void onPlayerPositionChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerPositionChanged *pos = fireArgs;
+
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
 
         if (!controller->connected) {
                 return;
@@ -222,6 +240,10 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerRotationChanged *rot = fireArgs;
 
+        if (game_inMainMenu(controller->game)) {
+                return;
+        }
+
         if (!controller->connected) {
                 return;
         }
@@ -241,12 +263,14 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void networkController_setup(struct networkController *controller, struct game *game, const char *host, unsigned short port) {
+void networkController_setup(struct networkController *controller, struct game *game, const char *host, unsigned short port, size_t testMapSceneIdx) {
         controller->game = game;
         controller->connected = false;
         
         controller->sentPosPacket = false;
         controller->sentRotPacket = false;
+
+        controller->testMapSceneIdx = testMapSceneIdx;
         
         game_connect(game, NETWORK_CHANNELS_TOTAL, 0, 0, host, port, 0);
 

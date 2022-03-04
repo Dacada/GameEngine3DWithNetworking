@@ -3,8 +3,10 @@
 [X] Replace UI with https://github.com/Immediate-Mode-UI/Nuklear
 [X] Figure out how to deal with conflicts between playerController and UI 
 [X] Add FPS and Ping to UI
+[X] Make it possible to have no selected scene (renders nothing)
+[ ] Lazy load textures
 [ ] Add a nice ingame dialog to choose server and port
 [ ] Create a better test level in blender
-[ ] Port to Windows
 [ ] Allow for higher/lower terrain etc
 [ ] Make walls not walk through
+[ ] Port to Windows

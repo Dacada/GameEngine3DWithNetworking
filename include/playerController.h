@@ -58,7 +58,7 @@ struct playerController {
         } camera_mode;
 };
 
-void playerController_setup(struct playerController *controller, const struct object *const camera)
+void playerController_setup(struct playerController *controller, struct game *game, size_t cameraIdx, size_t playerIdx)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_only, 2)))
         __attribute__((nonnull));

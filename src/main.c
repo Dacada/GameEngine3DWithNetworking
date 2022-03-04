@@ -60,11 +60,7 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         }
 }
 
-static void updateUI(void *registerArgs, void *fireArgs) {
-        struct game *game = registerArgs;
-        struct eventBrokerUpdateUI *args = fireArgs;
-        struct nk_context *ctx = args->ctx;
-
+static void updateUIFPSPingWidget(struct game *game, struct nk_context *ctx) {
         static unsigned fps;
         {
                 static float deltas = 0;
@@ -98,7 +94,20 @@ static void updateUI(void *registerArgs, void *fireArgs) {
         nk_end(ctx);
 }
 
+static void updateUI(void *registerArgs, void *fireArgs) {
+        struct game *game = registerArgs;
+        struct eventBrokerUpdateUI *args = fireArgs;
+        struct nk_context *ctx = args->ctx;
+
+        if (!game_inMainMenu(game)) {
+                updateUIFPSPingWidget(game, ctx);
+        }
+}
+
 int main(int argc, char *argv[]) {
+        const vec4s white = GLMS_VEC4_ONE_INIT;
+        (void)white;
+        
         if (argc != 3) {
                 fprintf(stderr, "usage:\n\t%s host port\n", argv[0]);
                 return 1;
@@ -112,31 +121,64 @@ int main(int argc, char *argv[]) {
                   EVENT_TOTAL-EVENT_BROKER_EVENTS_TOTAL, 1);
         game_updateWindowTitle(game, "Title goes here :)");
 
+        // Create initial empty scene
+        size_t emptySceneIdx;
+        {
+                struct scene *emptyScene = game_createScene(game);
+                scene_init(emptyScene, game, white, 1);
+                emptySceneIdx = emptyScene->idx;
+                struct object *camera = scene_createObject(emptyScene, "Camera", 0);
+                struct component *cameraComp = componentCollection_create(game, COMPONENT_CAMERA);
+                object_setComponent(camera, cameraComp);
+                camera_init((struct camera*)cameraComp, "CameraComponent",
+                            800.0f/600.0f, 0.1f, 100.0f, glm_rad(45), true,
+                            COMPONENT_CAMERA);
+        }
+
         // Read scene from file
-        struct scene *scene = game_createScene(game);
-        FILE *f = fopen("scenes/scene.bgl", "r");
-        scene_initFromFile(scene, game, f);
-        game_setCurrentScene(game, scene->idx);
+        size_t sceneIdx;
+        {
+                struct scene *scene = game_createScene(game);
+                FILE *f = fopen("scenes/scene.bgl", "r");
+                scene_initFromFile(scene, game, f);
+                sceneIdx = scene->idx;
+        }
+        
+        game_setCurrentScene(game, emptySceneIdx);
+        game_setMainMenuScene(game, emptySceneIdx);
 
         // Setup player controller
         struct playerController *playerController = smalloc(sizeof(struct playerController));
-        size_t camera_idx = scene_idxByName(scene, "Camera");
-        struct object *camera = scene_getObjectFromIdx(scene, camera_idx);
-        playerController_setup(playerController, camera);
+        {
+                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
+                size_t cameraIdx = scene_idxByName(scene, "Camera");
+                size_t playerIdx = scene_idxByName(scene, "PlayerCharacter");
+                playerController_setup(playerController, game, cameraIdx, playerIdx);
+        }
 
         // Setup network controller
         struct networkController *networkController = smalloc(sizeof(struct networkController));
-        networkController_setup(networkController, game, host, port);
+        {
+                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
+                networkController_setup(networkController, game, host, port, scene->idx);
+        }
 
         // Setup entity controller
-        struct object *player = scene_getObjectFromIdx(scene, camera->parent);
-        struct component *playerGeometry = object_getComponent(player, COMPONENT_GEOMETRY);
-        struct component *playerMaterial = object_getComponent(player, COMPONENT_MATERIAL);
         struct entityController *entityController = smalloc(sizeof(struct entityController));
-        entityController_setup(entityController, game, playerGeometry, playerMaterial);
+        {
+                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
+                size_t playerIdx = scene_idxByName(scene, "PlayerCharacter");
+                struct object *player = scene_getObjectFromIdx(scene, playerIdx);
+                struct component *playerGeometry = object_getComponent(player, COMPONENT_GEOMETRY);
+                struct component *playerMaterial = object_getComponent(player, COMPONENT_MATERIAL);
+                entityController_setup(entityController, game, playerGeometry, playerMaterial);
+        }
 
         // Add a skybox
-        scene_setSkybox(scene, "skybox");
+        {
+                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
+                scene_setSkybox(scene, "skybox");
+        }
 
         // Register events
         eventBroker_register(processKeyboardEvent, EVENT_BROKER_PRIORITY_HIGH,
