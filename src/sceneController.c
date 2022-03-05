@@ -3,7 +3,7 @@
 #include <thirty/game.h>
 #include <thirty/eventBroker.h>
 
-static void onServerConnectionSuccess(void *registerArgs, void *fireArgs) {
+static void onConnected(void *registerArgs, void *fireArgs) {
         struct sceneController *controller = registerArgs;
         struct eventServerConnectionSuccess *args = fireArgs;
         (void)args;
@@ -23,6 +23,6 @@ void sceneController_setup(struct sceneController *const controller, struct game
         controller->game = game;
         controller->testSceneIdx = testSceneIdx;
 
-        eventBroker_register(onServerConnectionSuccess, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_SERVER_CONNECTION_SUCCESS, controller);
+        eventBroker_register(onConnected, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_NETWORK_CONNECTED, controller);
         eventBroker_register(onDisconnected, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_NETWORK_DISCONNECTED, controller);
 }

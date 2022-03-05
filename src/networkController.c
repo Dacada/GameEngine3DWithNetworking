@@ -51,8 +51,6 @@ static void onWelcomePacket(struct networkController *const controller,
                         eventBroker_fire((enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, &args);
                 }
         }
-
-        eventBroker_fire((enum eventBrokerEvent)EVENT_SERVER_CONNECTION_SUCCESS, NULL);
 }
 static void onEntityChangesUpdate(struct networkController *const controller,
                                   const struct networkPacketEntityChangesUpdate *const packet) {
@@ -270,4 +268,8 @@ void networkController_setup(struct networkController *controller, struct game *
 
 void networkController_connect(const struct networkController *controller, const char *host, unsigned short port) {
         game_connect(controller->game, NETWORK_CHANNELS_TOTAL, 0, 0, host, port, 0);
+}
+
+void networkController_disconnect(const struct networkController *controller) {
+        game_disconnect(controller->game, 0);
 }

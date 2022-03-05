@@ -105,4 +105,8 @@ void networkController_connect(const struct networkController *controller, const
         __attribute__((access (read_only, 2)))
         __attribute__((nonnull));
 
+void networkController_disconnect(const struct networkController *controller)
+        __attribute__((access (read_only, 1)))
+        __attribute__((nonnull));
+
 #endif /* NETWORK_CONTROLLER_H */

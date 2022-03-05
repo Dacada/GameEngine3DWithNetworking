@@ -10,12 +10,6 @@
 #define UI_FPS_BUFFER_SIZE 6
 #define UI_PING_BUFFER_SIZE 6
 
-#define UI_STATUS_WINDOW_WIDTH 100.0f
-#define UI_STATUS_WINDOW_HEIGHT 30.0f
-
-#define UI_SERVER_SELECT_WINDOW_WIDTH 300.0f
-#define UI_SERVER_SELECT_WINDOW_HEIGHT 146.0f
-
 struct uiControllerStatusData {
         unsigned fps;
         unsigned prevFps;
@@ -34,9 +28,17 @@ struct uiControllerStatusData {
 struct uiControllerServerSelectData {
         char hostBuffer[UI_HOST_BUFFER_SIZE];
         char portBuffer[UI_PORT_BUFFER_SIZE];
+        
         int currentEdit;
         bool shouldFocusCurrentEdit;
-        bool connectButtonActive;
+        
+        enum {
+                UI_SERVER_SELECT_STATUS_INPUT,
+                UI_SERVER_SELECT_STATUS_CONNECTING,
+                UI_SERVER_SELECT_STATUS_ERROR,
+                UI_SERVER_SELECT_STATUS_CONNECTED,
+        } connectionStatus;
+        const char *errorMsg;
 };
 
 struct uiController {
