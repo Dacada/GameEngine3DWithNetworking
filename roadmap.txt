@@ -4,11 +4,11 @@
 [X] Figure out how to deal with conflicts between playerController and UI 
 [X] Add FPS and Ping to UI
 [X] Make it possible to have no selected scene (renders nothing)
-[-] Add a nice ingame dialog to choose server and port
+[X] Add a nice ingame dialog to choose server and port
     [X] Add basic error report: if a field is empty say it's required
     [X] Make it show a "Connecting..." dialog while it's connecting and then either error (and a message?) if failed or change scene if success
-    [ ] test networking again
-[ ] Lazy load textures
+    [X] test networking again
+[ ] Lazy load textures and geometries
 [ ] Create a better test level in blender
 [ ] Allow for higher/lower terrain etc
 [ ] Make walls not walk through

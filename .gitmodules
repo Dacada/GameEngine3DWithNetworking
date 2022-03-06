@@ -1,6 +1,3 @@
 [submodule "thirty"]
 	path = lib/thirty
 	url = ssh://git@git.davidcarreracasado.cat:18561/media/files/gitserver/thirty.git
-[submodule "lib/BitmapFontGenerator"]
-	path = lib/BitmapFontGenerator
-	url = git@github.com:Dacada/BitmapFontGenerator.git
