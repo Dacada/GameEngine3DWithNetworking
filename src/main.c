@@ -63,6 +63,11 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         }
 }
 
+static void setSceneSkybox(struct scene *scene, void *args) {
+        char *name = args;
+        scene_setSkybox(scene, name);
+}
+
 int main(void) {
         // Initialize game
         struct game *game = smalloc(sizeof(struct game));
@@ -74,10 +79,9 @@ int main(void) {
         size_t sceneIdx;
         {
                 struct scene *scene = game_createScene(game);
-                FILE *f = fopen("scenes/scene.bgl", "r");
-                scene_initFromFile(scene, game, f);
-                scene_setSkybox(scene, "skybox");
+                scene_initFromFile(scene, game, "scenes/scene.bgl");
                 sceneIdx = scene->idx;
+                scene_addLoadingStep(scene, setSceneSkybox, sstrdup("skybox"));
         }
         game_unsetCurrentScene(game);
 
