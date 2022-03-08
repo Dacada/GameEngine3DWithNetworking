@@ -91,14 +91,7 @@ int main(void) {
 
         // Setup entity controller
         struct entityController *entityController = smalloc(sizeof(struct entityController));
-        {
-                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
-                size_t playerIdx = scene_idxByName(scene, "PlayerCharacter");
-                struct object *player = scene_getObjectFromIdx(scene, playerIdx);
-                struct component *playerGeometry = object_getComponent(player, COMPONENT_GEOMETRY);
-                struct component *playerMaterial = object_getComponent(player, COMPONENT_MATERIAL);
-                entityController_setup(entityController, game, playerGeometry, playerMaterial);
-        }
+        entityController_setup(entityController, game, "PlayerCharacter");
 
         // Setup scene controller
         struct sceneController *sceneController = smalloc(sizeof(struct sceneController));

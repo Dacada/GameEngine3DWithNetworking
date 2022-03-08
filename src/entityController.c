@@ -30,8 +30,12 @@ static void onNetworkEntityNew(void *registerArgs, void *fireArgs) {
         
         static char name[256];
         snprintf(name, 256, "networkEntity%lu", args->idx);
-        
-        entity->localIdx = createEntity(controller->game, controller->geometry, controller->material, name, args->position, args->rotation);
+
+        struct scene *scene = game_getCurrentScene(controller->game);
+        struct object *player = scene_getObjectFromIdx(scene, controller->playerIdx);
+        struct component *geometry = object_getComponent(player, COMPONENT_GEOMETRY);
+        struct component *material = object_getComponent(player, COMPONENT_MATERIAL);
+        entity->localIdx = createEntity(controller->game, geometry, material, name, args->position, args->rotation);
 
         entity->prevPos = args->position;
         entity->nextPos = args->position;
@@ -150,11 +154,22 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         }
 }
 
-void entityController_setup(struct entityController *const controller, struct game *const game, struct component *const playerGeometry, struct component *const playerMaterial) {
+static void onSceneChange(void *registerArgs, void *fireArgs) {
+        struct entityController *controller = registerArgs;
+        (void)fireArgs;
+
+        if (!controller->game->inScene) {
+                return;
+        }
+
+        struct scene *scene = game_getCurrentScene(controller->game);
+        controller->playerIdx = scene_idxByName(scene, controller->playerName);
+}
+
+void entityController_setup(struct entityController *const controller, struct game *const game, const char *const playerName) {
         controller->game = game;
         controller->numEntities = 0;
-        controller->geometry = playerGeometry;
-        controller->material = playerMaterial;
+        controller->playerName = playerName;
 
         for (size_t i=0; i<MAX_ENTITIES; i++) {
                 controller->entities[i].init = false;
@@ -163,6 +178,7 @@ void entityController_setup(struct entityController *const controller, struct ga
         eventBroker_register(onNetworkEntityNew, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_NEW, controller);
         eventBroker_register(onNetworkEntityDel, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_DEL, controller);
         eventBroker_register(onNetworkEntityUpdate, EVENT_BROKER_PRIORITY_HIGH, (enum eventBrokerEvent)EVENT_NETWORK_ENTITY_UPDATE, controller);
+        eventBroker_register(onSceneChange, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_SCENE_CHANGED, controller);
 
         eventBroker_register(onUpdate, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_UPDATE, controller);
 }
