@@ -28,7 +28,7 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         struct game *game = registerArgs;
         struct eventBrokerKeyboardEvent *args = fireArgs;
         
-        if (game_inMainMenu(game)) {
+        if (!game->inScene) {
                 return;
         }
         
@@ -64,27 +64,11 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
 }
 
 int main(void) {
-        const vec4s white = GLMS_VEC4_ONE_INIT;
-
         // Initialize game
         struct game *game = smalloc(sizeof(struct game));
         game_init(game, SCREEN_WIDTH, SCREEN_HEIGHT,
                   EVENT_TOTAL-EVENT_BROKER_EVENTS_TOTAL, 1);
         game_updateWindowTitle(game, "Title goes here :)");
-
-        // Create initial empty scene
-        size_t emptySceneIdx;
-        {
-                struct scene *emptyScene = game_createScene(game);
-                scene_init(emptyScene, game, white, 1);
-                emptySceneIdx = emptyScene->idx;
-                struct object *camera = scene_createObject(emptyScene, "Camera", 0);
-                struct component *cameraComp = componentCollection_create(game, COMPONENT_CAMERA);
-                object_setComponent(camera, cameraComp);
-                camera_init((struct camera*)cameraComp, "CameraComponent",
-                            800.0f/600.0f, 0.1f, 100.0f, glm_rad(45), true,
-                            COMPONENT_CAMERA);
-        }
 
         // Read scene from file
         size_t sceneIdx;
@@ -95,25 +79,15 @@ int main(void) {
                 scene_setSkybox(scene, "skybox");
                 sceneIdx = scene->idx;
         }
-        
-        game_setCurrentScene(game, emptySceneIdx);
-        game_setMainMenuScene(game, emptySceneIdx);
+        game_unsetCurrentScene(game);
 
         // Setup player controller
         struct playerController *playerController = smalloc(sizeof(struct playerController));
-        {
-                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
-                size_t cameraIdx = scene_idxByName(scene, "Camera");
-                size_t playerIdx = scene_idxByName(scene, "PlayerCharacter");
-                playerController_setup(playerController, game, cameraIdx, playerIdx);
-        }
+        playerController_setup(playerController, game, "Camera", "PlayerCharacter");
 
         // Setup network controller
         struct networkController *networkController = smalloc(sizeof(struct networkController));
-        {
-                struct scene *scene = game_getSceneFromIdx(game, sceneIdx);
-                networkController_setup(networkController, game, scene->idx);
-        }
+        networkController_setup(networkController, game);
 
         // Setup entity controller
         struct entityController *entityController = smalloc(sizeof(struct entityController));

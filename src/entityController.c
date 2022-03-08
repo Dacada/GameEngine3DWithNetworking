@@ -50,6 +50,10 @@ static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
         struct entityController *controller = registerArgs;
         struct eventNetworkEntityDel *args = fireArgs;
 
+        if (!controller->game->inScene) {
+                return;
+        }
+
         struct networkEntity *entity = &controller->entities[args->idx];
         if (!entity->init) {
                 fprintf(stderr, "NETWORK DEL ENTITY DOES NOT EXIST\n");
@@ -66,6 +70,10 @@ static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
 static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
         struct entityController *controller = registerArgs;
         struct eventNetworkEntityUpdate *args = fireArgs;
+
+        if (!controller->game->inScene) {
+                return;
+        }
 
         struct networkEntity *entity = &controller->entities[args->idx];
         if (!entity->init) {
@@ -102,11 +110,15 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         struct entityController *controller = registerArgs;
         (void)fireArgs;
 
+        if (!controller->game->inScene) {
+                return;
+        }
+
         struct scene *scene = game_getCurrentScene(controller->game);
         struct timespec now = monotonic();
 
         size_t count = 0;
-        for (size_t i=0; i<MAX_ENTITIES; i++) {
+        for (size_t i=0; i<MAX_ENTITIES && count<controller->numEntities; i++) {
                 struct networkEntity *entity = &controller->entities[i];
                 if (entity->init) {
                         unsigned long elapsed_ns = monotonic_difference(now, entity->lastUpdate);
@@ -134,9 +146,6 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
                         transform_rotateZ(transform, currRot);
 
                         count++;
-                        if (count >= controller->numEntities) {
-                                break;
-                        }
                 }
         }
 }

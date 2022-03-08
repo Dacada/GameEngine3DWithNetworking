@@ -235,7 +235,7 @@ static void keyboardEvent(void *registerArgs, void *fireArgs) {
         }
 
         if (args->key == GLFW_KEY_TAB) {
-                if (game_inMainMenu(controller->game) && controller->serverSelectWidgetData.connectionStatus == UI_SERVER_SELECT_STATUS_INPUT) {
+                if (!controller->game->inScene && controller->serverSelectWidgetData.connectionStatus == UI_SERVER_SELECT_STATUS_INPUT) {
                         if (args->modifiers == GLFW_MOD_SHIFT) {
                                 controller->serverSelectWidgetData.currentEdit--;
                         } else {
@@ -252,10 +252,10 @@ static void keyboardEvent(void *registerArgs, void *fireArgs) {
                         controller->serverSelectWidgetData.connectionStatus = UI_SERVER_SELECT_STATUS_INPUT;
                 }
         } else if (args->key == GLFW_KEY_ESCAPE) {
-                if (game_inMainMenu(controller->game)) {
-                        game_shouldStop(controller->game);
-                } else {
+                if (controller->game->inScene) {
                         game_disconnect(controller->game, 0);
+                } else {
+                        game_shouldStop(controller->game);
                 }
         }
 }
@@ -264,13 +264,13 @@ static void updateUI(void *registerArgs, void *fireArgs) {
         struct uiController *controller = registerArgs;
         struct eventBrokerUpdateUI *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (controller->game->inScene) {
+                updateUI_statusWidget(&controller->statusWidgetData, args->ctx,
+                                      controller->game);
+        } else {
                 updateUI_serverSelectWidget(
                         controller->game, args->ctx, args->winWidth, args->winHeight,
                         controller->networkController, &controller->serverSelectWidgetData);
-        } else {
-                updateUI_statusWidget(&controller->statusWidgetData, args->ctx,
-                                      controller->game);
         }
 }
 
@@ -279,7 +279,7 @@ static void sceneChanged(void *registerArgs, void *fireArgs) {
         struct eventBrokerSceneChanged *args = fireArgs;
         (void)args;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 controller->serverSelectWidgetData.currentEdit = 0;
                 controller->serverSelectWidgetData.shouldFocusCurrentEdit = true;
         }

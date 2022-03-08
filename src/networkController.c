@@ -113,7 +113,7 @@ static void onControlPacket(struct networkController *const controller,
 }
 static void onMovementPacket(struct networkController *const controller,
                              const struct networkPacket *const packet) {
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
         
@@ -128,7 +128,7 @@ static void onMovementPacket(struct networkController *const controller,
 }
 static void onServerUpdatePacket(struct networkController *const controller,
                                  const struct networkPacket *const packet) {
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
         
@@ -179,7 +179,7 @@ static void onPlayerJumped(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerJumped *jumped = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -198,7 +198,7 @@ static void onPlayerPositionChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerPositionChanged *pos = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -222,7 +222,7 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
         struct networkController *controller = registerArgs;
         struct eventPlayerRotationChanged *rot = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -245,15 +245,12 @@ static void onPlayerRotationChanged(void *registerArgs, void *fireArgs) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void networkController_setup(struct networkController *controller, struct game *game, size_t testMapSceneIdx) {
+void networkController_setup(struct networkController *controller, struct game *game) {
         controller->game = game;
         controller->connected = false;
         
         controller->sentPosPacket = false;
         controller->sentRotPacket = false;
-
-        // TODO: Have an own controller to handle scene changes
-        controller->testMapSceneIdx = testMapSceneIdx;
 
         eventBroker_register(onReceived, EVENT_BROKER_PRIORITY_HIGH,
                              EVENT_BROKER_NETWORK_RECV, controller);

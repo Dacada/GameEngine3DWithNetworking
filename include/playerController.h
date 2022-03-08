@@ -14,7 +14,9 @@ struct sphericalCoord {
 
 struct playerController {
         struct game *game;
-        
+
+        const char *camera_name;
+        const char *playerCharacter_name;
         size_t camera_idx;
         size_t playerCharacter_idx;
         
@@ -58,7 +60,7 @@ struct playerController {
         } camera_mode;
 };
 
-void playerController_setup(struct playerController *controller, struct game *game, size_t cameraIdx, size_t playerIdx)
+void playerController_setup(struct playerController *controller, struct game *game, const char *cameraName, const char *playerName)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_only, 2)))
         __attribute__((nonnull));

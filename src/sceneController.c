@@ -16,7 +16,7 @@ static void onDisconnected(void *registerArgs, void *fireArgs) {
         struct eventBrokerNetworkDisconnected *args = fireArgs;
         (void)args;
 
-        game_setCurrentScene(controller->game, controller->game->mainMenuScene);
+        game_unsetCurrentScene(controller->game);
 }
 
 void sceneController_setup(struct sceneController *const controller, struct game *game, size_t testSceneIdx) {

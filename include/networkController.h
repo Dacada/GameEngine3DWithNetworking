@@ -20,7 +20,6 @@ struct networkController {
         struct game *game;
         bool connected;
         unsigned id;
-        size_t testMapSceneIdx;
 
         bool sentPosPacket;
         struct timespec lastTimeSentPosPacket;
@@ -95,7 +94,7 @@ struct __attribute__((packed)) networkPacketEntityChangesUpdate {
         struct networkPacketEntityChange entities[];
 };
 
-void networkController_setup(struct networkController *controller, struct game *game, size_t testMapSceneIdx)
+void networkController_setup(struct networkController *controller, struct game *game)
         __attribute__((access (write_only, 1)))
         __attribute__((access (read_write, 2)))
         __attribute__((nonnull));

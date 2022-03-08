@@ -138,7 +138,7 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerUpdate *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -219,7 +219,7 @@ static void onMousePosition(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMousePosition *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
                 
@@ -241,7 +241,7 @@ static void onMouseButton(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseButton *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -359,7 +359,7 @@ static void onMouseScroll(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventBrokerMouseScroll *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -374,7 +374,7 @@ static void onMousePoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
         
@@ -393,7 +393,7 @@ static void onKeyboardPoll(void *registerArgs, void *fireArgs) {
         (void)fireArgs;
         struct playerController *controller = registerArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -472,7 +472,7 @@ static void onKeyboardEvent(void *registerArgs, void *fireArgs) {
         const int key = args->key;
         const int action = args->action;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
@@ -494,7 +494,7 @@ static void onPositionCorrection(void *registerArgs, void *fireArgs) {
         struct playerController *controller = registerArgs;
         struct eventPlayerPositionCorrected *args = fireArgs;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
         
@@ -522,23 +522,27 @@ static void onSceneChange(void *registerArgs, void *fireArgs) {
         struct eventBrokerSceneChanged *args = fireArgs;
         (void)args;
 
-        if (game_inMainMenu(controller->game)) {
+        if (!controller->game->inScene) {
                 return;
         }
 
         update_cursor_visibility(controller, true);
+        
         struct scene *scene = game_getCurrentScene(controller->game);
+        controller->camera_idx = scene_idxByName(scene, controller->camera_name);
+        controller->playerCharacter_idx = scene_idxByName(scene, controller->playerCharacter_name);
+        
         struct object *camera = scene_getObjectFromIdx(scene, controller->camera_idx);
         struct transform *camera_trans = object_getComponent(camera, COMPONENT_TRANSFORM);
         camera_trans->model = getCameraModel(controller->camera_position);
 }
 
 
-void playerController_setup(struct playerController *controller, struct game *const game, const size_t cameraIdx, const size_t playerIdx) {
+void playerController_setup(struct playerController *controller, struct game *const game, const char *const cameraName, const char *const playerName) {
         controller->game = game;
-        
-        controller->camera_idx = cameraIdx;
-        controller->playerCharacter_idx = playerIdx;
+
+        controller->camera_name = cameraName;
+        controller->playerCharacter_name = playerName;
 
         controller->pc_movement_direction = GLMS_VEC2_ZERO;
         controller->pc_rotation = 0;
