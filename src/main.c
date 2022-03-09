@@ -63,9 +63,10 @@ static void processKeyboardEvent(void *registerArgs, void *fireArgs) {
         }
 }
 
-static void setSceneSkybox(struct scene *scene, void *args) {
+static bool setSceneSkybox(struct scene *scene, void *args) {
         char *name = args;
         scene_setSkybox(scene, name);
+        return true;
 }
 
 int main(void) {
