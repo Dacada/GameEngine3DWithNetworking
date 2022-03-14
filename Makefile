@@ -28,7 +28,7 @@ TARGETS := $(BIN_DIR)/main_dbg $(BIN_DIR)/main_rel $(BIN_DIR)/server_dbg $(BIN_D
 
 CC := gcc
 
-CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` `pkg-config --cflags libenet` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
+CFLAGS := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags glfw3` `pkg-config --cflags cglm` `pkg-config --cflags libenet` -Werror -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11
 LDFLAGS := `pkg-config --libs glfw3` `pkg-config --libs cglm` `pkg-config --libs libenet` -lm -ldl -std=c11
 
 CFLAGS_SERVER := -I$(realpath $(INCLUDE_DIR)) -Ilib/thirty/include `pkg-config --cflags libenet` -Wall -Wextra -Wfloat-equal -Wundef -Wshadow -Wpointer-arith -Wcast-align -Wmissing-prototypes -Wwrite-strings -Wcast-qual -Wswitch-default -Wswitch-enum -Wconversion -Wunreachable-code -Wimplicit-fallthrough -Wstringop-overflow=4 -std=c11

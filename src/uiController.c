@@ -12,6 +12,9 @@
 #define UI_SERVER_SELECT_STATUS_WINDOW_WIDTH 250.0f
 #define UI_SERVER_SELECT_STATUS_WINDOW_HEIGHT 115.0f
 
+#define UI_LOADING_STATUS_WINDOW_WIDTH 400.0f
+#define UI_LOADING_STATUS_WINDOW_HEIGHT 90.0f
+
 static void updateFps(struct uiControllerStatusData *data, float delta) {
         data->fpsChanged = false;
         data->deltas += delta;
@@ -173,6 +176,36 @@ static void updateUI_serverSelectWidget_errorWindow(
         nk_end(ctx);
 }
 
+static void updateUI_serverSelectWidget_loadingWindow(
+        struct uiControllerServerSelectData *data, struct nk_context *ctx,
+        int width, int height) {
+
+        struct nk_rect bounds = nk_rect(
+                (float)width/2-UI_LOADING_STATUS_WINDOW_WIDTH/2,
+                (float)height/2-UI_LOADING_STATUS_WINDOW_HEIGHT/2,
+                UI_LOADING_STATUS_WINDOW_WIDTH,
+                UI_LOADING_STATUS_WINDOW_HEIGHT);
+
+        nk_flags flags = 0;
+
+        if (nk_begin(ctx, "loadingWindow", bounds, flags)) {
+                nk_layout_row_begin(ctx, NK_DYNAMIC, 0, 3);
+                nk_layout_row_push(ctx, 0.1f);
+                nk_label(ctx, "", NK_TEXT_CENTERED);
+                nk_layout_row_push(ctx, 0.8f);
+                nk_label(ctx, "Loading...", NK_TEXT_CENTERED);
+                nk_layout_row_push(ctx, 0.1f);
+                nk_label(ctx, "", NK_TEXT_CENTERED);
+
+                nk_layout_row_begin(ctx, NK_DYNAMIC, 0, 1);
+                nk_layout_row_push(ctx, 1.0f);
+                
+                nk_progress(ctx, &data->sceneLoadProgressCurrent,
+                            data->sceneLoadProgressTotal, NK_FIXED);
+        }
+        nk_end(ctx);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static void updateUI_serverSelectWidget(struct game *game, struct nk_context *ctx, int width, int height, struct networkController *networkController, struct uiControllerServerSelectData *data) {
@@ -190,6 +223,9 @@ static void updateUI_serverSelectWidget(struct game *game, struct nk_context *ct
                         data, ctx, width, height);
                 break;
         case UI_SERVER_SELECT_STATUS_CONNECTED:
+                updateUI_serverSelectWidget_loadingWindow(
+                        data, ctx, width, height);
+                break;
         default:
                 break;
         }
@@ -285,6 +321,14 @@ static void sceneChanged(void *registerArgs, void *fireArgs) {
         }
 }
 
+static void sceneLoadProgress(void *registerArgs, void *fireArgs) {
+        struct uiController *controller = registerArgs;
+        struct eventBrokerSceneLoadProgress *args = fireArgs;
+
+        controller->serverSelectWidgetData.sceneLoadProgressCurrent = args->current;
+        controller->serverSelectWidgetData.sceneLoadProgressTotal = args->total;
+}
+
 static void onConnect(void *registerArgs, void *fireArgs) {
         struct uiController *controller = registerArgs;
         struct eventBrokerNetworkConnected *args = fireArgs;
@@ -329,6 +373,10 @@ void uiController_setup(struct uiController *controller, struct game *game, stru
         
         controller->serverSelectWidgetData.currentEdit = 0;
         controller->serverSelectWidgetData.shouldFocusCurrentEdit = true;
+
+        controller->serverSelectWidgetData.sceneLoadProgressCurrent = 0;
+        controller->serverSelectWidgetData.sceneLoadProgressTotal = 1;
+        
         controller->serverSelectWidgetData.connectionStatus = UI_SERVER_SELECT_STATUS_INPUT;
         controller->serverSelectWidgetData.errorMsg = "";
 
@@ -348,6 +396,7 @@ void uiController_setup(struct uiController *controller, struct game *game, stru
         eventBroker_register(updateUI, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_UPDATE_UI, controller);
         eventBroker_register(keyboardEvent, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_KEYBOARD_EVENT, controller);
         eventBroker_register(sceneChanged, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_SCENE_CHANGED, controller);
+        eventBroker_register(sceneLoadProgress, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_SCENE_LOAD_PROGRESS, controller);
         eventBroker_register(onConnect, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_NETWORK_CONNECTED, controller);
         eventBroker_register(onDisconnect, EVENT_BROKER_PRIORITY_HIGH, EVENT_BROKER_NETWORK_DISCONNECTED, controller);
 }

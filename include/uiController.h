@@ -32,6 +32,9 @@ struct uiControllerServerSelectData {
         int currentEdit;
         bool shouldFocusCurrentEdit;
         
+        size_t sceneLoadProgressCurrent;
+        size_t sceneLoadProgressTotal;
+        
         enum {
                 UI_SERVER_SELECT_STATUS_INPUT,
                 UI_SERVER_SELECT_STATUS_CONNECTING,
