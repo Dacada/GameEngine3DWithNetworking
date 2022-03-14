@@ -319,8 +319,14 @@ void uiController_setup(struct uiController *controller, struct game *game, stru
         controller->game = game;
         controller->networkController = networkController;
 
+#ifndef NDEBUG
+        strcpy(controller->serverSelectWidgetData.hostBuffer, "localhost");
+        strcpy(controller->serverSelectWidgetData.portBuffer, "8196");
+#else
         controller->serverSelectWidgetData.hostBuffer[0] = '\0';
         controller->serverSelectWidgetData.portBuffer[0] = '\0';
+#endif
+        
         controller->serverSelectWidgetData.currentEdit = 0;
         controller->serverSelectWidgetData.shouldFocusCurrentEdit = true;
         controller->serverSelectWidgetData.connectionStatus = UI_SERVER_SELECT_STATUS_INPUT;
