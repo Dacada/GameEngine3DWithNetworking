@@ -9,6 +9,7 @@
 struct networkEntity {
         bool init;
         size_t localIdx;
+        size_t networkIdx;
 
         vec3s prevPos;
         float prevRot;

@@ -27,15 +27,19 @@ static void onNetworkEntityNew(void *registerArgs, void *fireArgs) {
                 fprintf(stderr, "NETWORK NEW ENTITY ALREADY EXISTS\n");
                 return;
         }
-        
-        static char name[256];
-        snprintf(name, 256, "networkEntity%lu", args->idx);
+
+        entity->networkIdx = args->idx;
 
         struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *player = scene_getObjectFromIdx(scene, controller->playerIdx);
-        struct component *geometry = object_getComponent(player, COMPONENT_GEOMETRY);
-        struct component *material = object_getComponent(player, COMPONENT_MATERIAL);
-        entity->localIdx = createEntity(controller->game, geometry, material, name, args->position, args->rotation);
+        if (scene != NULL) {
+                static char name[256];
+                snprintf(name, 256, "networkEntity%lu", args->idx);
+        
+                struct object *player = scene_getObjectFromIdx(scene, controller->playerIdx);
+                struct component *geometry = object_getComponent(player, COMPONENT_GEOMETRY);
+                struct component *material = object_getComponent(player, COMPONENT_MATERIAL);
+                entity->localIdx = createEntity(controller->game, geometry, material, name, args->position, args->rotation);
+        }
 
         entity->prevPos = args->position;
         entity->nextPos = args->position;
@@ -65,8 +69,11 @@ static void onNetworkEntityDel(void *registerArgs, void *fireArgs) {
         }
 
         struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
-        scene_removeObject(scene, object);
+        if (scene != NULL) {
+                struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
+                scene_removeObject(scene, object);
+        }
+        
         entity->init = false;
         controller->numEntities--;
 }
@@ -86,17 +93,23 @@ static void onNetworkEntityUpdate(void *registerArgs, void *fireArgs) {
         }
 
         struct scene *scene = game_getCurrentScene(controller->game);
-        struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
-        struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);
+        if (scene != NULL) {
+                struct object *object = scene_getObjectFromIdx(scene, entity->localIdx);
+                struct transform *transform = object_getComponent(object, COMPONENT_TRANSFORM);
 
-        vec4s t;
-        mat4s r;
-        vec3s s;
-        glms_decompose(transform->model, &t, &r, &s);
-        vec3s rr = glms_euler_angles(r);
+                vec4s t;
+                mat4s r;
+                vec3s s;
+                glms_decompose(transform->model, &t, &r, &s);
+                vec3s rr = glms_euler_angles(r);
 
-        entity->prevPos = glms_vec3(t);
-        entity->prevRot = rr.z;
+                entity->prevPos = glms_vec3(t);
+                entity->prevRot = rr.z;
+        } else {
+                entity->prevPos = entity->nextPos;
+                entity->prevRot = entity->nextRot;
+        }
+        
         entity->nextPos = args->position;
         entity->nextRot = args->rotation;
         entity->lastUpdate = monotonic();
@@ -119,6 +132,10 @@ static void onUpdate(void *registerArgs, void *fireArgs) {
         }
 
         struct scene *scene = game_getCurrentScene(controller->game);
+        if (scene == NULL) {
+                return;
+        }
+        
         struct timespec now = monotonic();
 
         size_t count = 0;
@@ -164,6 +181,19 @@ static void onSceneChange(void *registerArgs, void *fireArgs) {
 
         struct scene *scene = game_getCurrentScene(controller->game);
         controller->playerIdx = scene_idxByName(scene, controller->playerName);
+
+        size_t count = 0;
+        for (size_t i=0; i<MAX_ENTITIES && count<controller->numEntities; i++) {
+                struct networkEntity *entity = &controller->entities[i];
+                if (entity->init) {
+                        static char name[256];
+                        snprintf(name, 256, "networkEntity%lu", entity->networkIdx);
+                        struct object *player = scene_getObjectFromIdx(scene, controller->playerIdx);
+                        struct component *geometry = object_getComponent(player, COMPONENT_GEOMETRY);
+                        struct component *material = object_getComponent(player, COMPONENT_MATERIAL);
+                        entity->localIdx = createEntity(controller->game, geometry, material, name, entity->prevPos, entity->prevRot);
+                }
+        }
 }
 
 void entityController_setup(struct entityController *const controller, struct game *const game, const char *const playerName) {

@@ -8,7 +8,8 @@
     [X] Add basic error report: if a field is empty say it's required
     [X] Make it show a "Connecting..." dialog while it's connecting and then either error (and a message?) if failed or change scene if success
     [X] test networking again
-[ ] Lazy load textures and geometries
+[X] Lazy load textures and geometries
+    [X] Test networking yet again (it will crash when it tries to load an entity)
 [ ] Create a better test level in blender
 [ ] Allow for higher/lower terrain etc
 [ ] Make walls not walk through
