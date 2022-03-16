@@ -6,7 +6,7 @@
 
 static const float look_sensitivity = 0.1F;
 static const float camera_distance_min = 2.0F;
-static const float camera_distance_max = 10.0F;
+static const float camera_distance_max = 50.0F;
 static const float camera_distance_default = 4.0F;
 static const float camera_zoom_animation_rate = 4.0F;
 static const float camera_zoom_animation_stop = 1e-3f;
