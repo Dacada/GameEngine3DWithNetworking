@@ -13,9 +13,9 @@ void main() {
         
         gl_Position = modelViewProjection * boned_position;
         position_vs = (modelView * boned_position).xyz;
-        normal_vs = mat3(modelView) * boned_normal.xyz;
-        tangent_vs = mat3(modelView) * boned_tangent.xyz;
-        binormal_vs = mat3(modelView) * boned_binormal.xyz;
+        normal_vs = vec3(modelView * boned_normal);
+        tangent_vs = vec3(modelView * boned_tangent);
+        binormal_vs = vec3(modelView * boned_binormal);
         
         texCoord = in_texCoord;
         invView_out = invView;

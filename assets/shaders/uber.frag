@@ -86,8 +86,7 @@ vec3 expandNormal(vec3 normal) {
 vec4 doNormalMapping(mat3 TBN, sampler2D tex, vec2 uv) {
         vec3 normal = texture(tex, uv).xyz;
         normal = expandNormal(normal);
-        normal *= TBN;
-        return normalize(vec4(normal, 0));
+        return normalize(vec4(TBN * normal, 0));
 }
 
 // Might be incorrect way to do bump mapping
@@ -101,8 +100,7 @@ vec4 doBumpMapping(mat3 TBN, sampler2D tex, vec2 uv, float bumpScale) {
         vec3 pV = vec3(0, 1, heightV);
 
         vec3 normal = cross(normalize(pU-p), normalize(pV-p));
-        normal *= TBN;
-        return vec4(normal, 0);
+        return vec4(TBN * normal, 0);
 }
 
 vec4 doDiffuse(Light light, vec4 L, vec4 N) {
@@ -256,7 +254,7 @@ void main() {
                 N = doNormalMapping(TBN, normalTexture, texCoord);
         } else if (mat.hasBumpTexture) {
                 mat3 TBN = mat3(normalize(tangent_vs),
-                                normalize(-binormal_vs),
+                                normalize(binormal_vs),
                                 normalize(normal_vs));
                 N = doBumpMapping(TBN, bumpTexture, texCoord,
                                   mat.bumpIntensity);
